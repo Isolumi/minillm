@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minillm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "huggingface-hub>=1.27.0",
+    "numpy>=2.5.2",
+    "pytest>=9.1.1",
+    "safetensors>=0.8.0",
+    "torch>=2.13.0",
+    "transformers>=5.15.0",
+    "uvicorn>=0.53.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+reference = [
+    "transformers",
+]
+
+[tool.setuptools.packages.find]
+include = ["minillm*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
