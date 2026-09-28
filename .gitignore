@@ -1,5 +1,17 @@
+# Local environment and editor files
 .venv/
-__pycache__/
-.DS_Store
+.env
 .vscode/
-models/
+.DS_Store
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Downloaded model files and personal planning notes
+/models/
+/docs/superpowers/
