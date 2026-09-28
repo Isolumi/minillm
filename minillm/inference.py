@@ -1,5 +1,6 @@
 import threading
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 from transformers import (
@@ -8,13 +9,13 @@ from transformers import (
     DynamicCache,
 )
 
-from minillm.conversations import Conversation
-
 
 @dataclass
 class GenerationResult:
     text: str
-    reused_tokens: int
+    prompt_tokens: int
+    completion_tokens: int
+    finish_reason: Literal["stop", "length"]
 
 
 class ContextLimitExceeded(Exception):
@@ -44,21 +45,17 @@ class InferenceEngine:
 
     def generate(
         self,
-        conversation: Conversation,
-        prompt: str,
+        messages: list[dict[str, str]],
         max_new_tokens: int,
     ) -> GenerationResult:
         with self._lock, torch.inference_mode():
-            return self._generate_locked(conversation, prompt, max_new_tokens)
+            return self._generate_locked(messages, max_new_tokens)
 
     def _generate_locked(
         self,
-        conversation: Conversation,
-        prompt: str,
+        messages: list[dict[str, str]],
         max_new_tokens: int,
     ) -> GenerationResult:
-        messages = conversation.messages + [{"role": "user", "content": prompt}]
-
         inputs = self.tokenizer.apply_chat_template(
             messages,
             tokenize=True,
@@ -66,66 +63,36 @@ class InferenceEngine:
             return_tensors="pt",
         ).to(self.device)
 
-        prompt_ids = inputs.input_ids[0].tolist()
-        prompt_length = len(prompt_ids)
+        prompt_length = inputs.input_ids.shape[-1]
 
         if prompt_length + max_new_tokens > self.context_limit:
             raise ContextLimitExceeded("convo too long")
 
-        reused_tokens = 0
+        result = self.model.generate(
+            **inputs,
+            past_key_values=DynamicCache(config=self.model.config),
+            use_cache=True,
+            return_dict_in_generate=True,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            num_beams=1,
+        )
 
-        if conversation.cache is not None:
-            cached_length = conversation.cache.get_seq_length()
+        new_tokens = result.sequences[0, prompt_length:]
+        answer = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
 
-            prefix_matches = (
-                cached_length == len(conversation.cached_ids)
-                and cached_length < prompt_length
-                and prompt_ids[:cached_length] == conversation.cached_ids
-            )
+        eos_token_ids = self.model.generation_config.eos_token_id
+        if isinstance(eos_token_ids, int):
+            eos_token_ids = [eos_token_ids]
+        finish_reason = (
+            "stop"
+            if len(new_tokens) and int(new_tokens[-1]) in (eos_token_ids or [])
+            else "length"
+        )
 
-            if prefix_matches:
-                reused_tokens = cached_length
-            else:
-                conversation.cache = None
-                conversation.cached_ids = []
-
-        # not else branch because prev if can delete cache
-        if conversation.cache is None:
-            conversation.cache = DynamicCache(config=self.model.config)
-
-        try:
-            result = self.model.generate(
-                **inputs,
-                past_key_values=conversation.cache,
-                use_cache=True,
-                return_dict_in_generate=True,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-                num_beams=1,
-            )
-
-            new_tokens = result.sequences[0, prompt_length:]
-            answer = self.tokenizer.decode(
-                new_tokens,
-                skip_special_tokens=True,
-            )
-
-            conversation.cache = result.past_key_values
-            cached_length = conversation.cache.get_seq_length()
-            conversation.cached_ids = (
-                result.sequences[0, :cached_length].tolist()
-            )
-
-            conversation.messages = messages + [
-                {"role": "assistant", "content": answer}
-            ]
-
-            return GenerationResult(
-                text=answer,
-                reused_tokens=reused_tokens,
-            )
-
-        except Exception:
-            conversation.cache = None
-            conversation.cached_ids = []
-            raise
+        return GenerationResult(
+            text=answer,
+            prompt_tokens=prompt_length,
+            completion_tokens=len(new_tokens),
+            finish_reason=finish_reason,
+        )
