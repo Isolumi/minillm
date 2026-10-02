@@ -1,49 +1,62 @@
-# MiniLLM
+# minillm
 
-A local text-generation server built around a Hugging Face model. The server exposes a text-only subset of the OpenAI Responses API while the inference engine is developed incrementally.
+A small single-GPU inference engine in Python and PyTorch, with browser chat and
+an OpenAI-compatible Responses API.
+
+- Custom SmolLM2 forward pass, BPE tokenizer, and safetensors loader
+- Continuous batching, chunked prefill, and prefix reuse
+- Paged KV cache, Triton decode attention, and optional INT8 KV storage
+- Streaming, conversation history, cancellation, and image input with Gemma
+
+Runs SmolLM2 360M/1.7B directly, plus Qwen2.5 7B and Gemma 4 E4B through
+Transformers. One model stays in VRAM at a time.
 
 ## Run
 
-From the repository root, with the model in `models/smollm2-1.7b-instruct`:
-
 ```bash
+uv sync --locked
+uv run hf download HuggingFaceTB/SmolLM2-1.7B-Instruct \
+  --local-dir models/smollm2-1.7b-instruct \
+  --include '*.json' --include '*.safetensors' --include '*.jinja'
 uv run python main.py
 ```
 
-The server listens at `http://127.0.0.1:8123`. Set `MINILLM_MODEL_PATH` to use another local model directory; optionally set `MINILLM_MODEL_NAME` to choose the ID exposed by the API.
+Open [localhost:8123](http://127.0.0.1:8123). Requires Python 3.14+ and an NVIDIA
+GPU. For other local checkpoints, see [models.example.json](models.example.json)
+and set `MINILLM_MODELS_CONFIG` to your config file.
 
-## Responses API
-
-```bash
-curl http://127.0.0.1:8123/v1/responses \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"smollm2-1.7b-instruct","input":"Hello!","max_output_tokens":64}'
-```
-
-The same endpoint can be called with an OpenAI client by setting its base URL to `http://127.0.0.1:8123/v1` and providing any nonempty API key:
+## API
 
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:8123/v1", api_key="unused")
-first = client.responses.create(
+client = OpenAI(base_url="http://127.0.0.1:8123/v1", api_key="local")
+response = client.responses.create(
     model="smollm2-1.7b-instruct",
-    input="My name is Avery.",
-    max_output_tokens=64,
+    input="Explain how a KV cache works.",
+    max_output_tokens=128,
 )
-print(first.output_text)
-
-second = client.responses.create(
-    model="smollm2-1.7b-instruct",
-    previous_response_id=first.id,
-    input="What is my name?",
-    max_output_tokens=64,
-)
-print(second.output_text)
+print(response.output_text)
 ```
 
-The endpoint accepts a text `input` or an array of simple `{role, content}` messages. For follow-up turns, use `previous_response_id` or send the full message history. `instructions` provides a system message for the current request; resend it on follow-ups if needed. `store` defaults to `true`; `store: false` prevents later retrieval or continuation by that response ID. The server keeps at most 128 responses in memory, evicts the oldest, and loses them on restart. It does not retain GPU KV cache for these responses.
+## RTX 5090 numbers
 
-This text-only subset supports greedy output, `max_output_tokens` (default 128, maximum 1024), `temperature=0`, and `stream=false`. Unsupported request fields are rejected. Streaming, sampling, tools, and multimodal content are planned for later milestones.
+SmolLM2 1.7B, FP16, 40-token prompt, 32 output tokens, warm prefix cache.
+Medians from three batches after one warmup, measured through the streaming API.
 
-`GET /v1/responses/{response_id}` retrieves a stored response. `GET /v1/models` lists the served model, and `GET /health` reports server readiness.
+| Concurrent requests | Total output tokens/s | Request latency |
+| ---: | ---: | ---: |
+| 1 | 146.2 | 219 ms |
+| 4 | 425.9 | 284 ms |
+| 8 | 618.5 | 387 ms |
+
+INT8 KV storage uses **46.9% less cache memory**, including scales.
+Single-request decode is still slower than the Hugging Face cached runner.
+
+To rerun the throughput benchmark with the server running:
+
+```bash
+uv run python scripts/bench_engine.py --model smollm2-1.7b-instruct \
+  --output-tokens 32 --concurrency 8 --warmup 1 --repetitions 3 \
+  --output benchmarks/http.json
+```

@@ -1,13 +1,10 @@
-import threading
+"""Small synchronous Python facade over the same engine used by HTTP."""
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from uuid import uuid4
 
-import torch
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    DynamicCache,
-)
+from minillm.config import ModelSpec, Settings
+from minillm.engine.scheduler import Engine
 
 
 @dataclass
@@ -15,84 +12,41 @@ class GenerationResult:
     text: str
     prompt_tokens: int
     completion_tokens: int
-    finish_reason: Literal["stop", "length"]
+    finish_reason: str
 
 
-class ContextLimitExceeded(Exception):
+class ContextLimitExceeded(ValueError):
     pass
 
 
 class InferenceEngine:
-    def __init__(self, model_path: str):
-        if not torch.cuda.is_available():
-            raise RuntimeError("where cuda :(")
+    def __init__(self, model_path: str, *, backend: str = "custom", settings: Settings | None = None):
+        self.model_id = Path(model_path).name
+        spec = ModelSpec(self.model_id, str(Path(model_path).resolve()), backend,
+                         "custom" if backend == "custom" else "hf")
+        self.engine = Engine(settings=settings, specs=[spec])
+        self.engine.start()
 
-        self.device = torch.device("cuda")
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            local_files_only=True,
-        )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            local_files_only=True,
-            dtype=torch.float16,
-        ).to(self.device)
-        self.model.eval()
+    def generate(self, messages: list[dict], max_new_tokens: int, **sampling) -> GenerationResult:
+        handle = self.engine.submit(uuid4().hex, self.model_id, messages, max_new_tokens, **sampling)
+        try:
+            while True:
+                event = handle.events.get()
+                if event["type"] == "error":
+                    if "context limit" in event["message"]:
+                        raise ContextLimitExceeded(event["message"])
+                    raise RuntimeError(event["message"])
+                if event["type"] == "done":
+                    return GenerationResult(event["text"], event["prompt_tokens"], event["completion_tokens"], event["finish_reason"])
+        except BaseException:
+            handle.cancel()
+            raise
 
-        self.context_limit = self.model.config.max_position_embeddings
+    def close(self):
+        self.engine.close()
 
-        self._lock = threading.Lock()
+    def __enter__(self):
+        return self
 
-    def generate(
-        self,
-        messages: list[dict[str, str]],
-        max_new_tokens: int,
-    ) -> GenerationResult:
-        with self._lock, torch.inference_mode():
-            return self._generate_locked(messages, max_new_tokens)
-
-    def _generate_locked(
-        self,
-        messages: list[dict[str, str]],
-        max_new_tokens: int,
-    ) -> GenerationResult:
-        inputs = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_tensors="pt",
-        ).to(self.device)
-
-        prompt_length = inputs.input_ids.shape[-1]
-
-        if prompt_length + max_new_tokens > self.context_limit:
-            raise ContextLimitExceeded("convo too long")
-
-        result = self.model.generate(
-            **inputs,
-            past_key_values=DynamicCache(config=self.model.config),
-            use_cache=True,
-            return_dict_in_generate=True,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            num_beams=1,
-        )
-
-        new_tokens = result.sequences[0, prompt_length:]
-        answer = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-
-        eos_token_ids = self.model.generation_config.eos_token_id
-        if isinstance(eos_token_ids, int):
-            eos_token_ids = [eos_token_ids]
-        finish_reason = (
-            "stop"
-            if len(new_tokens) and int(new_tokens[-1]) in (eos_token_ids or [])
-            else "length"
-        )
-
-        return GenerationResult(
-            text=answer,
-            prompt_tokens=prompt_length,
-            completion_tokens=len(new_tokens),
-            finish_reason=finish_reason,
-        )
+    def __exit__(self, *_):
+        self.close()

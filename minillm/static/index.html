@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MiniLLM</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10131a; color: #e9edf5; }
+    body { margin: 0 auto; max-width: 760px; padding: 1.5rem; }
+    header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.35rem; margin-right: auto; }
+    select, button, textarea { font: inherit; color: inherit; border: 1px solid #475064; background: #1c2230; border-radius: .5rem; }
+    select, button { padding: .55rem .7rem; }
+    button { cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    #chat { min-height: 55vh; display: flex; flex-direction: column; gap: 1rem; }
+    .bubble { white-space: pre-wrap; line-height: 1.5; padding: .85rem 1rem; border-radius: .7rem; max-width: 85%; }
+    .user { align-self: flex-end; background: #31446e; }
+    .assistant { align-self: flex-start; background: #242b39; }
+    form { display: flex; gap: .6rem; align-items: end; border-top: 1px solid #394154; padding-top: 1rem; }
+    textarea { flex: 1; padding: .7rem; min-height: 3rem; resize: vertical; }
+    #status { color: #b5bdd0; min-height: 1.5rem; font-size: .9rem; }
+    #model { max-width: 20rem; }
+    #image { max-width: 100%; margin: .7rem 0; }
+    .bubble img { display: block; max-width: 100%; max-height: 18rem; border-radius: .5rem; }
+    @media (max-width: 620px) { header { flex-wrap: wrap; } #model { max-width: 100%; } form { flex-wrap: wrap; } textarea { min-width: 65%; } }
+  </style>
+</head>
+<body>
+  <header><h1>MiniLLM</h1><select id="model" aria-label="Model"></select><button id="reset">New chat</button></header>
+  <main id="chat" aria-live="polite"></main>
+  <div id="status"></div>
+  <input id="image" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Attach one image" hidden>
+  <form id="form"><textarea id="prompt" aria-label="Message" placeholder="Write a message…" required></textarea><button id="send">Send</button><button id="stop" type="button" disabled>Stop</button></form>
+  <script>
+    const model = document.querySelector('#model');
+    const chat = document.querySelector('#chat');
+    const prompt = document.querySelector('#prompt');
+    const status = document.querySelector('#status');
+    const send = document.querySelector('#send');
+    const reset = document.querySelector('#reset');
+    const stop = document.querySelector('#stop');
+    const imageInput = document.querySelector('#image');
+    let previousResponseId = null;
+    let controller = null;
+    let hasImage = false;
+
+    function updateImageInput() {
+      imageInput.hidden = model.selectedOptions[0]?.dataset.images !== 'true' || hasImage;
+      imageInput.value = '';
+    }
+
+    function imageData(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not read image'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function bubble(role, text) {
+      const node = document.createElement('div');
+      node.className = `bubble ${role}`;
+      node.textContent = text;
+      chat.append(node);
+      node.scrollIntoView({block: 'end'});
+      return node;
+    }
+
+    async function loadModels() {
+      try {
+        const response = await fetch('/v1/models');
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error?.message || 'Could not list models');
+        for (const item of body.data) {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = item.id;
+          option.dataset.images = String(item.modalities?.includes('image') || false);
+          model.append(option);
+        }
+        if (!model.options.length) status.textContent = 'No models are configured.';
+        updateImageInput();
+      } catch (error) { status.textContent = error.message; }
+    }
+
+    model.addEventListener('change', () => {
+      previousResponseId = null;
+      hasImage = false;
+      chat.replaceChildren();
+      updateImageInput();
+    });
+    document.querySelector('#reset').addEventListener('click', () => {
+      controller?.abort();
+      previousResponseId = null;
+      hasImage = false;
+      chat.replaceChildren();
+      status.textContent = '';
+      updateImageInput();
+    });
+    stop.addEventListener('click', () => controller?.abort());
+    prompt.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        document.querySelector('#form').requestSubmit();
+      }
+    });
+    document.querySelector('#form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const input = prompt.value.trim();
+      if (!input || !model.value || controller) return;
+      prompt.value = '';
+      const userBubble = bubble('user', input);
+      const answer = bubble('assistant', '');
+      controller = new AbortController();
+      send.disabled = true;
+      model.disabled = true;
+      reset.disabled = true;
+      stop.disabled = false;
+      imageInput.disabled = true;
+      status.textContent = 'Generating…';
+      try {
+        let requestInput = input;
+        const file = imageInput.files[0];
+        if (file) {
+          if (file.size > 4 * 1024 * 1024) throw new Error('Image must be at most 4 MiB');
+          const data = await imageData(file);
+          requestInput = [{role: 'user', content: [{type: 'input_text', text: input}, {type: 'input_image', image_url: data}]}];
+          const preview = document.createElement('img');
+          preview.src = data;
+          preview.alt = 'Attached image';
+          userBubble.append(preview);
+        }
+        const response = await fetch('/v1/responses', {
+          method: 'POST', headers: {'Content-Type': 'application/json'}, signal: controller.signal,
+          body: JSON.stringify({model: model.value, input: requestInput, max_output_tokens: 512, stream: true, previous_response_id: previousResponseId})
+        });
+        if (!response.ok) {
+          const body = await response.json();
+          throw new Error(body.error?.message || `HTTP ${response.status}`);
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finished = false;
+        while (!finished) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, {stream: true});
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop();
+          for (const frame of frames) {
+            const line = frame.split('\n').find(line => line.startsWith('data: '));
+            if (!line || line === 'data: [DONE]') continue;
+            const item = JSON.parse(line.slice(6));
+            if (item.type === 'response.output_text.delta') answer.textContent += item.delta;
+            if (item.type === 'response.completed' || item.type === 'response.incomplete') {
+              answer.textContent = item.response.output?.[0]?.content?.[0]?.text || answer.textContent;
+              if (['completed', 'incomplete'].includes(item.response.status)) {
+                previousResponseId = item.response.id;
+                hasImage = hasImage || Boolean(file);
+              }
+              status.textContent = item.response.status === 'completed' ? '' : item.response.status;
+              finished = true;
+            }
+            if (item.type === 'response.failed') throw new Error(item.response.error?.message || 'Generation failed');
+          }
+        }
+        await reader.cancel();
+        if (!finished) throw new Error('The stream was interrupted. Please retry.');
+      } catch (error) {
+        if (error.name === 'AbortError') status.textContent = 'Stopped';
+        else { answer.textContent = `Error: ${error.message}`; status.textContent = error.message; }
+      } finally {
+        controller = null;
+        send.disabled = false;
+        model.disabled = false;
+        reset.disabled = false;
+        stop.disabled = true;
+        imageInput.disabled = false;
+        updateImageInput();
+        prompt.focus();
+      }
+    });
+    loadModels();
+  </script>
+</body>
+</html>

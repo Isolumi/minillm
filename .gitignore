@@ -12,6 +12,7 @@ __pycache__/
 build/
 dist/
 
-# Downloaded model files and personal planning notes
+# Models and local notes
 /models/
-/docs/superpowers/
+/docs/
+/benchmarks/

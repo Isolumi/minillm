@@ -1,0 +1,7 @@
+[
+  {"id": "smollm2-1.7b-instruct", "path": "models/smollm2-1.7b-instruct", "backend": "custom", "tokenizer": "custom"},
+  {"id": "smollm2-hf-oracle", "path": "models/smollm2-1.7b-instruct", "backend": "hf", "tokenizer": "hf"},
+  {"id": "HuggingFaceTB/SmolLM2-360M-Instruct", "path": "models/smollm2-360m-instruct", "backend": "custom", "tokenizer": "custom"},
+  {"id": "Qwen/Qwen2.5-7B-Instruct", "path": "models/qwen2.5-7b-instruct", "backend": "hf", "tokenizer": "hf"},
+  {"id": "google/gemma-4-E4B-it", "path": "models/gemma4-e4b", "backend": "multimodal", "tokenizer": "hf"}
+]
