@@ -41,7 +41,7 @@ class Settings:
     cache_memory_mb: int = 2048
     cache_layout: str = "paged"
     cache_dtype: str = "auto"
-    attention_backend: str = "auto"
+    attention_backend: str = "triton"
     prefix_cache: bool = True
     max_model_turn_requests: int = 16
 
@@ -62,7 +62,7 @@ class Settings:
             ),
             cache_dtype=choice("MINILLM_CACHE_DTYPE", "auto", {"auto", "int8"}),
             attention_backend=choice(
-                "MINILLM_ATTENTION", "auto", {"auto", "torch", "triton"}
+                "MINILLM_ATTENTION", "triton", {"torch", "triton"}
             ),
             prefix_cache=choice("MINILLM_PREFIX_CACHE", "1", {"0", "1"}) == "1",
             max_model_turn_requests=integer("MINILLM_MODEL_TURN_REQUESTS", 16),

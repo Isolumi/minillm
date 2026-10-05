@@ -13,7 +13,6 @@ from torch.nn import functional as F
 
 from minillm.attention import apply_rope, decode_attention, prefill_attention
 from minillm.cache import ContiguousKVCache, PagedKVCache
-from minillm.kernels import available as triton_available
 from minillm.kernels import paged_decode_attention
 
 
@@ -32,7 +31,7 @@ class SmolLMRunner:
         dtype=torch.float16,
         cache_layout="paged",
         cache_dtype="auto",
-        attention_backend="auto",
+        attention_backend="triton",
         max_context=8192,
         max_requests=8,
         cache_memory_mb=2048,
@@ -84,15 +83,11 @@ class SmolLMRunner:
             eos = json.loads(generation_path.read_text()).get("eos_token_id", [])
             self.eos_token_ids.update((eos if isinstance(eos, list) else [eos]))
             self.eos_token_ids.discard(None)
-        if attention_backend not in ("auto", "torch", "triton"):
-            raise ValueError("attention_backend must be auto, torch, or triton")
-        if attention_backend == "triton" and not triton_available(self.device):
-            raise ValueError("Triton attention requested without Triton/CUDA support")
-        self.attention_backend = (
-            ("triton" if triton_available(self.device) else "torch")
-            if attention_backend == "auto"
-            else attention_backend
-        )
+        if attention_backend not in ("torch", "triton"):
+            raise ValueError("attention_backend must be torch or triton")
+        if attention_backend == "triton" and self.device.type != "cuda":
+            raise ValueError("Triton attention requires a CUDA device")
+        self.attention_backend = attention_backend
         if cache_layout not in ("paged", "contiguous"):
             raise ValueError("cache_layout must be paged or contiguous")
         self.cache_layout = cache_layout

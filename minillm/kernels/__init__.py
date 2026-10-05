@@ -1,3 +1,3 @@
-from .decode import available, paged_decode_attention
+from .decode import paged_decode_attention
 
-__all__ = ["available", "paged_decode_attention"]
+__all__ = ["paged_decode_attention"]

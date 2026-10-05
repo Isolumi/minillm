@@ -47,7 +47,7 @@ def main():
     )
     parser.add_argument("--cache-dtype", choices=("auto", "int8"), default="auto")
     parser.add_argument(
-        "--attention", choices=("auto", "torch", "triton"), default="auto"
+        "--attention", choices=("torch", "triton"), default="triton"
     )
     parser.add_argument("--dtype", choices=("float16", "bfloat16"), default="float16")
     parser.add_argument("--device", default="cuda")
@@ -80,7 +80,7 @@ def main():
 
     device = torch.device(args.device)
     if device.type == "cuda" and not torch.cuda.is_available():
-        parser.error("CUDA is unavailable; use --device cpu for a functional fallback")
+        parser.error("CUDA is unavailable")
     dtype = getattr(torch, args.dtype) if device.type == "cuda" else torch.float32
     model_path = str(args.model_path.resolve())
     tokenizer = HFTokenizer(model_path)

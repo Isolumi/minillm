@@ -51,7 +51,7 @@ class ModelRegistry:
         device = torch.device(cfg.device)
         if device.type == "cuda" and not torch.cuda.is_available():
             raise RuntimeError(
-                "CUDA is unavailable. Use MINILLM_DEVICE=cpu for the PyTorch fallback."
+                "CUDA is unavailable. MiniLLM requires an NVIDIA GPU with CUDA."
             )
         dtype = getattr(torch, cfg.dtype) if device.type != "cpu" else torch.float32
         if spec.backend == "custom":

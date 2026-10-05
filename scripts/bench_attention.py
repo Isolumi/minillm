@@ -67,10 +67,10 @@ def main():
 
     from minillm.attention import decode_attention, reference_attention
     from minillm.cache import ContiguousKVCache, PagedKVCache
-    from minillm.kernels import available, paged_decode_attention
+    from minillm.kernels import paged_decode_attention
 
-    if not torch.cuda.is_available() or not available("cuda"):
-        parser.error("CUDA and Triton are required for this comparison")
+    if not torch.cuda.is_available():
+        parser.error("CUDA is required for this comparison")
     device = torch.device("cuda")
     dtype = getattr(torch, args.dtype)
     torch.manual_seed(1234)

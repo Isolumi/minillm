@@ -21,9 +21,10 @@ uv run hf download HuggingFaceTB/SmolLM2-1.7B-Instruct \
 uv run python main.py
 ```
 
-Open [localhost:8123](http://127.0.0.1:8123). Requires Python 3.14+ and an NVIDIA
-GPU. For other local checkpoints, see [models.example.json](models.example.json)
-and set `MINILLM_MODELS_CONFIG` to your config file.
+Open [localhost:8123](http://127.0.0.1:8123). Built for Linux and the RTX 5090;
+requires Python 3.14+, CUDA, and Triton. For other local checkpoints, see
+[models.example.json](models.example.json) and set `MINILLM_MODELS_CONFIG` to your
+config file.
 
 ## API
 
