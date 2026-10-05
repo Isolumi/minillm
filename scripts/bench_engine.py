@@ -6,7 +6,7 @@ import math
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -73,11 +73,11 @@ def main():
                     if first_visible is None:
                         first_visible = time.perf_counter() - started
                     delta_text += event.delta
-                elif event.type in {
-                    "response.completed",
-                    "response.incomplete",
-                    "response.failed",
-                }:
+                elif (
+                    event.type == "response.completed"
+                    or event.type == "response.incomplete"
+                    or event.type == "response.failed"
+                ):
                     terminal = event.response
         elapsed = time.perf_counter() - started
         if terminal is None:
@@ -134,7 +134,7 @@ def main():
     ]
     result = {
         "benchmark": "engine_http_stream",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "settings": {
             "base_url": args.base_url,
             "model": args.model,

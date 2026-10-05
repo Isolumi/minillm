@@ -27,7 +27,7 @@ class SmolLMRunner:
     def __init__(
         self,
         model_path,
-        device="cuda",
+        device: str | torch.device = "cuda",
         dtype=torch.float16,
         cache_layout="paged",
         cache_dtype="auto",
@@ -81,7 +81,7 @@ class SmolLMRunner:
         generation_path = self.model_path / "generation_config.json"
         if generation_path.exists():
             eos = json.loads(generation_path.read_text()).get("eos_token_id", [])
-            self.eos_token_ids.update((eos if isinstance(eos, list) else [eos]))
+            self.eos_token_ids.update(eos if isinstance(eos, list) else [eos])
             self.eos_token_ids.discard(None)
         if attention_backend not in ("torch", "triton"):
             raise ValueError("attention_backend must be torch or triton")
@@ -172,13 +172,14 @@ class SmolLMRunner:
             if path.resolve().parent != self.model_path:
                 raise ValueError("Checkpoint shards must reside in the model directory")
             with safe_open(str(path), framework="pt", device="cpu") as checkpoint:
-                for name in checkpoint.keys():
-                    if name not in shapes:
+                checkpoint_names = set(checkpoint.keys())
+                for name, expected_shape in shapes.items():
+                    if name not in checkpoint_names:
                         continue
                     tensor = checkpoint.get_tensor(name)
-                    if tuple(tensor.shape) != shapes[name]:
+                    if tuple(tensor.shape) != expected_shape:
                         raise ValueError(
-                            f"Unexpected checkpoint shape for {name}: {tuple(tensor.shape)}, expected {shapes[name]}"
+                            f"Unexpected checkpoint shape for {name}: {tuple(tensor.shape)}, expected {expected_shape}"
                         )
                     if not tensor.is_floating_point():
                         raise ValueError(

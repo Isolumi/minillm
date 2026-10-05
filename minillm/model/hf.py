@@ -4,6 +4,7 @@ import base64
 import binascii
 import io
 from dataclasses import dataclass, field
+from typing import Protocol, cast
 
 import torch
 from PIL import Image, UnidentifiedImageError
@@ -17,6 +18,12 @@ from minillm.tokenization.smollm import load_hf_tokenizer
 
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
 MAX_IMAGE_PIXELS = 4096 * 4096
+
+
+class _GenerationInputPreparer(Protocol):
+    def prepare_inputs_for_generation(
+        self, input_ids: torch.Tensor, **kwargs: object
+    ) -> dict[str, object]: ...
 
 
 def image_from_data_uri(uri: str) -> Image.Image:
@@ -75,7 +82,7 @@ class HFRunner:
     def __init__(
         self,
         model_path: str,
-        device="cuda",
+        device: str | torch.device = "cuda",
         dtype=torch.float16,
         max_context=8192,
         multimodal=False,
@@ -87,16 +94,15 @@ class HFRunner:
         # Gemma checkpoints use BF16; use their native dtype to avoid FP16 overflow.
         if multimodal and self.device.type == "cuda" and dtype == torch.float16:
             dtype = torch.bfloat16
-        self.model = (
-            cls.from_pretrained(
-                model_path,
-                local_files_only=True,
-                dtype=dtype,
-                attn_implementation=attention_backend,
-            )
-            .to(self.device)
-            .eval()
+        self.model = cls.from_pretrained(
+            model_path,
+            local_files_only=True,
+            dtype=dtype,
+            attn_implementation=attention_backend,
         )
+        # Transformers' wrapped .to has an incorrect bound-method type.
+        cast(torch.nn.Module, self.model).to(self.device)
+        self.model.eval()
         self.processor = (
             AutoProcessor.from_pretrained(model_path, local_files_only=True)
             if multimodal
@@ -151,6 +157,7 @@ class HFRunner:
                 else:
                     raise ValueError(f"Unsupported content type: {part['type']}")
             formatted.append({"role": message["role"], "content": output})
+        assert self.processor is not None
         inputs = self.processor.apply_chat_template(
             formatted,
             tokenize=True,
@@ -190,7 +197,10 @@ class HFRunner:
             else v
             for k, v in extras.items()
         }
-        model_inputs = self.model.prepare_inputs_for_generation(
+        # The AutoModel type does not satisfy GenerationMixin's self protocol.
+        # Keep instance dispatch so multimodal overrides still run.
+        preparer = cast(_GenerationInputPreparer, self.model)
+        model_inputs = preparer.prepare_inputs_for_generation(
             ids,
             past_key_values=state.cache,
             attention_mask=torch.ones((1, end), dtype=torch.long, device=self.device),

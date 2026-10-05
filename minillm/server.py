@@ -7,9 +7,10 @@ import json
 import queue
 import re
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncIterator
+from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -25,7 +26,9 @@ from minillm.schemas import (
     ResponseUsage,
 )
 
-_IMAGE_URI = re.compile(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$", re.I)
+_IMAGE_URI = re.compile(
+    r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$", re.IGNORECASE
+)
 _MAX_IMAGE_BYTES = 4 * 1024 * 1024
 _MAX_HISTORY_MESSAGES = 64
 _MAX_HISTORY_BYTES = 16 * 1024 * 1024
@@ -91,7 +94,7 @@ async def lifespan(app: FastAPI):
             active.cancel()
         await asyncio.to_thread(app.state.engine.close)
         if app.state.drainers:
-            done, pending = await asyncio.wait(app.state.drainers, timeout=2)
+            _, pending = await asyncio.wait(app.state.drainers, timeout=2)
             for task in pending:
                 task.cancel()
 

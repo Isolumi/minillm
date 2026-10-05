@@ -3,29 +3,35 @@
 import gc
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 
 from minillm.config import ModelSpec, Settings
+from minillm.model import Runner
 from minillm.model.hf import HFRunner, text_messages
+from minillm.tokenization import HFTokenizer, SmolLMTokenizer
 
 
 @dataclass
 class ModelBundle:
     spec: ModelSpec
-    runner: object
-    tokenizer: object
+    # The concrete runner owns its state type; scheduling treats it as opaque.
+    runner: Runner[Any]
+    tokenizer: HFTokenizer | SmolLMTokenizer | None
     capacity_tokens: int
     load_seconds: float
 
-    def prepare(self, messages):
-        if self.spec.backend != "custom":
+    def prepare(self, messages: list[dict]) -> tuple[list[int], dict]:
+        if isinstance(self.runner, HFRunner):
             return self.runner.encode_messages(messages)
+        assert self.tokenizer is not None
         return self.tokenizer.encode_messages(text_messages(messages)), {}
 
-    def decode(self, ids):
-        if self.spec.backend != "custom":
+    def decode(self, ids: list[int]) -> str:
+        if isinstance(self.runner, HFRunner):
             return self.runner.decode_text(ids)
+        assert self.tokenizer is not None
         return self.tokenizer.decode(ids)
 
 
@@ -56,7 +62,6 @@ class ModelRegistry:
         dtype = getattr(torch, cfg.dtype) if device.type != "cpu" else torch.float32
         if spec.backend == "custom":
             from minillm.model.smollm import SmolLMRunner
-            from minillm.tokenization import HFTokenizer, SmolLMTokenizer
 
             tokenizer = (
                 SmolLMTokenizer if spec.tokenizer == "custom" else HFTokenizer

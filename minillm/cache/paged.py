@@ -24,7 +24,7 @@ class PagedKVCache:
         num_kv_heads,
         head_dim,
         *,
-        device="cuda",
+        device: str | torch.device = "cuda",
         dtype=torch.float16,
         cache_dtype="auto",
         max_context=8192,
@@ -160,6 +160,7 @@ class PagedKVCache:
             ):
                 chunk = source[offset : offset + count]
                 if self.quantized:
+                    assert scales is not None
                     scale = (
                         chunk.float().abs().amax(dim=-1, keepdim=True).clamp_min(1e-12)
                         / 127
@@ -178,6 +179,7 @@ class PagedKVCache:
         key = self.keys[layer].index_select(0, blocks).flatten(0, 1)[: state.length]
         value = self.values[layer].index_select(0, blocks).flatten(0, 1)[: state.length]
         if self.quantized:
+            assert self.key_scales is not None and self.value_scales is not None
             ks = (
                 self.key_scales[layer]
                 .index_select(0, blocks)

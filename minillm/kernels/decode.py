@@ -59,9 +59,7 @@ def _decode(
         next_maximum = tl.maximum(maximum, tl.max(score, 0))
         correction = tl.exp(maximum - next_maximum)
         probability = tl.exp(score - next_maximum)
-        accumulator = accumulator * correction + tl.sum(
-            probability[:, None] * value, 0
-        )
+        accumulator = accumulator * correction + tl.sum(probability[:, None] * value, 0)
         denominator = denominator * correction + tl.sum(probability, 0)
         maximum = next_maximum
     tl.store(
@@ -83,7 +81,8 @@ def paged_decode_attention(query, cache, layer, states, metadata=None):
     key, value = cache.keys[layer], cache.values[layer]
     key_scales = cache.key_scales[layer] if cache.quantized else key
     value_scales = cache.value_scales[layer] if cache.quantized else value
-    _decode[(query.shape[0], query.shape[1])](
+    # The bracket launcher's type omits runtime options such as num_warps.
+    _decode.run(
         query,
         key,
         value,
@@ -100,6 +99,8 @@ def paged_decode_attention(query, cache, layer, states, metadata=None):
         QUANTIZED=cache.quantized,
         TILE=32,
         WIDTH=triton.next_power_of_2(query.shape[-1]),
+        grid=(query.shape[0], query.shape[1]),
+        warmup=False,
         num_warps=4,
     )
     return output

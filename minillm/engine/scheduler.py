@@ -12,8 +12,11 @@ from dataclasses import dataclass, field
 
 import torch
 
+from minillm.cache import CacheState
 from minillm.config import ModelSpec, Settings, model_specs
 from minillm.engine.registry import ModelRegistry
+from minillm.model.hf import HFState
+from minillm.model.smollm import SmolLMRunner
 
 log = logging.getLogger(__name__)
 
@@ -45,8 +48,8 @@ class Request:
     output_ids: list[int] = field(default_factory=list)
     prefill_position: int = 0
     cached_tokens: int = 0
-    state: object = None
-    generator: object = None
+    state: CacheState | HFState | None = None
+    generator: torch.Generator | None = None
     emitted: str = ""
     finished: bool = False
     prefill_seconds: float = 0.0
@@ -211,7 +214,9 @@ class Engine:
             self._handles.pop(request.handle.request_id, None)
         if request.state is not None:
             try:
-                self.registry.current.runner.release(request.state)
+                bundle = self.registry.current
+                assert bundle is not None
+                bundle.runner.release(request.state)
             except Exception:
                 log.exception("Failed to release request cache")
             request.state = None
@@ -232,7 +237,10 @@ class Engine:
         if request.finished:
             return
         bundle = self.registry.current
-        text = bundle.decode(request.output_ids) if request.output_ids else ""
+        text = ""
+        if request.output_ids:
+            assert bundle is not None
+            text = bundle.decode(request.output_ids)
         if not text.startswith(request.emitted):
             self._error(
                 request, "Tokenizer revised already streamed text", "decoding_error"
@@ -275,6 +283,8 @@ class Engine:
         if request.handle.cancelled.is_set():
             self._finish(request, "cancelled")
             return
+        bundle = self.registry.current
+        assert bundle is not None
         logits = logits.float()
         if not torch.isfinite(logits).all():
             raise RuntimeError("Model returned non-finite logits")
@@ -299,12 +309,12 @@ class Engine:
         if not request.first_token:
             request.first_token = time.perf_counter()
             self._record("first_token", request)
-        if token in self.registry.current.runner.eos_token_ids:
+        if token in bundle.runner.eos_token_ids:
             self._finish(request, "stop")
         elif len(request.output_ids) >= request.max_new_tokens:
             self._finish(request, "length")
         else:
-            text = self.registry.current.decode(request.output_ids)
+            text = bundle.decode(request.output_ids)
             # Flush complete words/lines. Incomplete byte tokens may decode as U+FFFD;
             # retaining the current word prevents sending text that later changes.
             boundary = max(text.rfind(" "), text.rfind("\n")) + 1
@@ -357,16 +367,18 @@ class Engine:
                 continue
             try:
                 self._prepare(request, bundle)
+                assert request.input_ids is not None
                 if reserved + request.reservation > bundle.capacity_tokens:
                     continue
                 request.state = bundle.runner.create_state()
                 if request.initial_inputs:
+                    assert isinstance(request.state, HFState)
                     request.state.initial_inputs = request.initial_inputs
                 request.generator = torch.Generator(
                     device=bundle.runner.device
                 ).manual_seed(request.seed)
                 request.started = time.perf_counter()
-                if hasattr(bundle.runner, "reuse_prefix"):
+                if isinstance(bundle.runner, SmolLMRunner):
                     request.cached_tokens = bundle.runner.reuse_prefix(
                         request.input_ids, request.state
                     )
@@ -442,6 +454,7 @@ class Engine:
                     )
                 return
         bundle = self.registry.current
+        assert bundle is not None
         self._admit(bundle)
         # Decode every ready request before admitting one chunk of prefill work.
         ready = [r for r in self._active if not r.finished and r.output_ids]
@@ -476,6 +489,7 @@ class Engine:
         if prefilling:
             request = prefilling
             try:
+                assert request.input_ids is not None
                 start = request.prefill_position
                 # Multimodal processor tensors align to the entire image-bearing prompt.
                 chunk = (
@@ -494,7 +508,7 @@ class Engine:
                 request.prefill_position = end
                 self._record("prefill_chunk", request, start=start, end=end)
                 if end == len(request.input_ids):
-                    if hasattr(bundle.runner, "publish_prefix"):
+                    if isinstance(bundle.runner, SmolLMRunner):
                         bundle.runner.publish_prefix(request.input_ids, request.state)
                     self._sample(request, logits)
             except Exception as exc:

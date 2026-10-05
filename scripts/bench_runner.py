@@ -6,8 +6,9 @@ import json
 import math
 import statistics
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 def summary(values):
@@ -46,9 +47,7 @@ def main():
         "--cache-layout", choices=("paged", "contiguous"), default="paged"
     )
     parser.add_argument("--cache-dtype", choices=("auto", "int8"), default="auto")
-    parser.add_argument(
-        "--attention", choices=("torch", "triton"), default="triton"
-    )
+    parser.add_argument("--attention", choices=("torch", "triton"), default="triton")
     parser.add_argument("--dtype", choices=("float16", "bfloat16"), default="float16")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--cache-memory-mb", type=int, default=2048)
@@ -75,6 +74,7 @@ def main():
     import torch
     import transformers
 
+    from minillm.model import Runner
     from minillm.model.hf import HFRunner
     from minillm.tokenization import HFTokenizer
 
@@ -157,14 +157,16 @@ def main():
         value = fn()
         return (time.perf_counter() - started) * 1000, value
 
-    def run_once(prompt_ids):
+    def run_once(prompt_ids, model_runner: Runner[Any] = runner):
         state = None
         try:
             if args.backend == "uncached":
+                assert isinstance(model_runner, HFRunner)
+                model = model_runner.model
 
                 def forward(ids):
                     tensor = torch.tensor([ids], device=device, dtype=torch.long)
-                    return runner.model(
+                    return model(
                         tensor, use_cache=False, logits_to_keep=1, return_dict=True
                     ).logits[0, -1]
 
@@ -179,17 +181,19 @@ def main():
                 decode_ms, logits = clocked(decode_full_prefix)
                 cache = {"cache_bytes": 0, "mode": "full-prefix recomputation"}
             else:
-                state = runner.create_state()
-                prefill_ms, logits = clocked(lambda: runner.prefill(prompt_ids, state))
+                state = model_runner.create_state()
+                prefill_ms, logits = clocked(
+                    lambda: model_runner.prefill(prompt_ids, state)
+                )
 
                 def decode_cached():
                     nonlocal logits
                     for token in forced:
-                        logits = runner.decode([token], [state])[0]
+                        logits = model_runner.decode([token], [state])[0]
                     return logits
 
                 decode_ms, logits = clocked(decode_cached)
-                cache = runner.stats()
+                cache = model_runner.stats()
             # Force logits to be consumed; no argmax or sampling changes the token workload.
             checksum = float(logits.float().sum().item())
             return {
@@ -207,7 +211,7 @@ def main():
             }
         finally:
             if state is not None:
-                runner.release(state)
+                model_runner.release(state)
 
     results = []
     with torch.inference_mode():
@@ -264,7 +268,7 @@ def main():
 
     output = {
         "benchmark": "fixed_token_runner",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "settings": {
             "model_path": model_path,
             "backend": args.backend,

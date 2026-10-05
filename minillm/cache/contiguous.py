@@ -35,6 +35,7 @@ class ContiguousKVCache(PagedKVCache):
             self.values[layer, block, : state.length],
         )
         if self.quantized:
+            assert self.key_scales is not None and self.value_scales is not None
             key = (key.float() * self.key_scales[layer, block, : state.length]).to(
                 self.dtype
             )

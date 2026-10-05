@@ -4,7 +4,7 @@ import argparse
 import json
 import math
 import statistics
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -137,7 +137,7 @@ def main():
             cache.write(0, state, 0, keys[index], values[index])
         metadata = cache.metadata(states)
 
-        def pytorch_cached():
+        def pytorch_cached(query=query, cache=cache, states=states):
             rows = []
             for index, state in enumerate(states):
                 key, value = cache.read(0, state)
@@ -148,7 +148,7 @@ def main():
                 )
             return torch.stack(rows)
 
-        def triton_cached():
+        def triton_cached(query=query, cache=cache, states=states, metadata=metadata):
             return paged_decode_attention(query, cache, 0, states, metadata)
 
         with torch.inference_mode():
@@ -204,7 +204,7 @@ def main():
 
     output = {
         "benchmark": "synthetic_cached_decode_attention",
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "settings": {
             "lengths": lengths,
             "batch": args.batch,
