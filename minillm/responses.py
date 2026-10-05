@@ -15,7 +15,9 @@ class StoredResponse:
 
 
 class ResponseStore:
-    def __init__(self, max_responses: int = 128, max_bytes: int = 64 * 1024 * 1024) -> None:
+    def __init__(
+        self, max_responses: int = 128, max_bytes: int = 64 * 1024 * 1024
+    ) -> None:
         self._responses: OrderedDict[str, tuple[StoredResponse, int]] = OrderedDict()
         self._max_responses = max_responses
         self._max_bytes = max_bytes
@@ -40,7 +42,10 @@ class ResponseStore:
                 self._bytes -= old[1]
             self._responses[stored.response.id] = (stored, size)
             self._bytes += size
-            while len(self._responses) > self._max_responses or self._bytes > self._max_bytes:
+            while (
+                len(self._responses) > self._max_responses
+                or self._bytes > self._max_bytes
+            ):
                 _, (_, removed_size) = self._responses.popitem(last=False)
                 self._bytes -= removed_size
         return True

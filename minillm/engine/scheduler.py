@@ -59,7 +59,9 @@ class Request:
 
 
 class Engine:
-    def __init__(self, settings: Settings | None = None, specs: list[ModelSpec] | None = None):
+    def __init__(
+        self, settings: Settings | None = None, specs: list[ModelSpec] | None = None
+    ):
         self.settings = settings or Settings.from_env()
         self.registry = ModelRegistry(specs or model_specs(), self.settings)
         self._condition = threading.Condition()
@@ -82,7 +84,9 @@ class Engine:
             if self._thread:
                 return
             self._snapshot["status"] = "ready"
-            self._thread = threading.Thread(target=self._run, name="minillm-gpu", daemon=True)
+            self._thread = threading.Thread(
+                target=self._run, name="minillm-gpu", daemon=True
+            )
             self._thread.start()
 
     def close(self):
@@ -97,41 +101,83 @@ class Engine:
     def models(self):
         with self._condition:
             resident = self._snapshot.get("resident_model")
-        return [{"id": s.id, "object": "model", "created": self._created, "owned_by": "minillm",
-                 "backend": s.backend, "modalities": ["text", "image"] if s.backend == "multimodal" else ["text"],
-                 "resident": s.id == resident} for s in self.registry.specs.values()]
+        return [
+            {
+                "id": s.id,
+                "object": "model",
+                "created": self._created,
+                "owned_by": "minillm",
+                "backend": s.backend,
+                "modalities": ["text", "image"]
+                if s.backend == "multimodal"
+                else ["text"],
+                "resident": s.id == resident,
+            }
+            for s in self.registry.specs.values()
+        ]
 
     def stats(self):
         with self._condition:
             return copy.deepcopy(self._snapshot)
 
-    def submit(self, request_id: str, model: str, messages: list[dict], max_new_tokens: int,
-               temperature: float = 0, top_p: float = 1, seed: int | None = None):
+    def submit(
+        self,
+        request_id: str,
+        model: str,
+        messages: list[dict],
+        max_new_tokens: int,
+        temperature: float = 0,
+        top_p: float = 1,
+        seed: int | None = None,
+    ):
         if model not in self.registry.specs:
             raise KeyError(f"Unknown model: {model}")
         if not 1 <= max_new_tokens <= 8192:
             raise ValueError("max_output_tokens must be between 1 and 8192")
-        if not math.isfinite(temperature) or not 0 <= temperature <= 2 or not math.isfinite(top_p) or not 0 < top_p <= 1:
+        if (
+            not math.isfinite(temperature)
+            or not 0 <= temperature <= 2
+            or not math.isfinite(top_p)
+            or not 0 < top_p <= 1
+        ):
             raise ValueError("Invalid temperature or top_p")
         if not messages:
             raise ValueError("Input cannot be empty")
         text_bytes = 0
         for message in messages:
             content = message["content"]
-            texts = [content] if isinstance(content, str) else [p.get("text", "") for p in content]
+            texts = (
+                [content]
+                if isinstance(content, str)
+                else [p.get("text", "") for p in content]
+            )
             text_bytes += sum(len(text.encode("utf-8")) for text in texts)
         if text_bytes > self.settings.max_context * 32:
-            raise ValueError(f"Text input exceeds the {self.settings.max_context * 32}-byte limit; shorten the conversation")
+            raise ValueError(
+                f"Text input exceeds the {self.settings.max_context * 32}-byte limit; shorten the conversation"
+            )
         handle = GenerationHandle(request_id, queue.Queue(maxsize=max_new_tokens + 8))
-        request = Request(handle, model, copy.deepcopy(messages), max_new_tokens, temperature, top_p,
-                          seed if seed is not None else secrets.randbits(63))
+        request = Request(
+            handle,
+            model,
+            copy.deepcopy(messages),
+            max_new_tokens,
+            temperature,
+            top_p,
+            seed if seed is not None else secrets.randbits(63),
+        )
         with self._condition:
             if self._stopping or not self._thread or not self._thread.is_alive():
                 raise RuntimeError("Engine is not running")
             if request_id in self._handles:
                 raise ValueError("Request ID already exists")
-            if len(self._handles) >= self.settings.max_queue + self.settings.max_requests:
-                raise RuntimeError("Request queue is full; retry when an active request finishes")
+            if (
+                len(self._handles)
+                >= self.settings.max_queue + self.settings.max_requests
+            ):
+                raise RuntimeError(
+                    "Request queue is full; retry when an active request finishes"
+                )
             self._handles[request_id] = handle
             self._waiting.append(request)
             self._condition.notify()
@@ -146,8 +192,18 @@ class Engine:
             return handle is not None
 
     def _record(self, kind, request=None, **fields):
-        self._trace.append({"time": time.time(), "event": kind,
-                            **({"request_id": request.handle.request_id, "model": request.model} if request else {}), **fields})
+        self._trace.append(
+            {
+                "time": time.time(),
+                "event": kind,
+                **(
+                    {"request_id": request.handle.request_id, "model": request.model}
+                    if request
+                    else {}
+                ),
+                **fields,
+            }
+        )
 
     def _forget(self, request):
         request.finished = True
@@ -168,7 +224,9 @@ class Engine:
         self._failed += 1
         self._record("error", request, code=code)
         self._forget(request)
-        request.handle.events.put_nowait({"type": "error", "message": str(exc), "code": code})
+        request.handle.events.put_nowait(
+            {"type": "error", "message": str(exc), "code": code}
+        )
 
     def _finish(self, request, reason):
         if request.finished:
@@ -176,24 +234,40 @@ class Engine:
         bundle = self.registry.current
         text = bundle.decode(request.output_ids) if request.output_ids else ""
         if not text.startswith(request.emitted):
-            self._error(request, "Tokenizer revised already streamed text", "decoding_error")
+            self._error(
+                request, "Tokenizer revised already streamed text", "decoding_error"
+            )
             return
-        delta = text[len(request.emitted):]
+        delta = text[len(request.emitted) :]
         if delta:
             request.handle.events.put_nowait({"type": "delta", "text": delta})
         now = time.perf_counter()
-        event = {"type": "done", "text": text, "prompt_tokens": len(request.input_ids or []),
-                 "completion_tokens": len(request.output_ids), "finish_reason": reason,
-                 "cached_tokens": request.cached_tokens, "token_ids": request.output_ids,
-                 "cache_write_tokens": max(0, request.prefill_position - request.cached_tokens),
-                 "timing": {"queue_seconds": max(0, (request.started or now) - request.submitted),
-                            "ttft_seconds": request.first_token - request.submitted if request.first_token else None,
-                            "prefill_seconds": request.prefill_seconds,
-                            "decode_step_seconds": request.decode_seconds,
-                            "total_seconds": now - request.submitted}}
+        event = {
+            "type": "done",
+            "text": text,
+            "prompt_tokens": len(request.input_ids or []),
+            "completion_tokens": len(request.output_ids),
+            "finish_reason": reason,
+            "cached_tokens": request.cached_tokens,
+            "token_ids": request.output_ids,
+            "cache_write_tokens": max(
+                0, request.prefill_position - request.cached_tokens
+            ),
+            "timing": {
+                "queue_seconds": max(0, (request.started or now) - request.submitted),
+                "ttft_seconds": request.first_token - request.submitted
+                if request.first_token
+                else None,
+                "prefill_seconds": request.prefill_seconds,
+                "decode_step_seconds": request.decode_seconds,
+                "total_seconds": now - request.submitted,
+            },
+        }
         self._cancelled += reason == "cancelled"
         self._completed += reason != "cancelled"
-        self._record("finish", request, reason=reason, output_tokens=len(request.output_ids))
+        self._record(
+            "finish", request, reason=reason, output_tokens=len(request.output_ids)
+        )
         self._forget(request)
         request.handle.events.put_nowait(event)
 
@@ -215,7 +289,11 @@ class Engine:
                 index = torch.multinomial(probabilities, 1, generator=request.generator)
                 token = int(indices[index].item())
             else:
-                token = int(torch.multinomial(probabilities, 1, generator=request.generator).item())
+                token = int(
+                    torch.multinomial(
+                        probabilities, 1, generator=request.generator
+                    ).item()
+                )
         request.output_ids.append(token)
         self._generated += 1
         if not request.first_token:
@@ -231,8 +309,12 @@ class Engine:
             # retaining the current word prevents sending text that later changes.
             boundary = max(text.rfind(" "), text.rfind("\n")) + 1
             stable = text[:boundary]
-            if stable.startswith(request.emitted) and len(stable) > len(request.emitted):
-                request.handle.events.put_nowait({"type": "delta", "text": stable[len(request.emitted):]})
+            if stable.startswith(request.emitted) and len(stable) > len(
+                request.emitted
+            ):
+                request.handle.events.put_nowait(
+                    {"type": "delta", "text": stable[len(request.emitted) :]}
+                )
                 request.emitted = stable
 
     def _prepare(self, request, bundle):
@@ -240,20 +322,36 @@ class Engine:
             request.input_ids, request.initial_inputs = bundle.prepare(request.messages)
             if not request.input_ids:
                 raise ValueError("Prompt produced no tokens")
-            if len(request.input_ids) + request.max_new_tokens > bundle.runner.context_limit:
-                raise ValueError(f"Prompt ({len(request.input_ids)}) plus output budget ({request.max_new_tokens}) exceeds the {bundle.runner.context_limit}-token context limit")
+            if (
+                len(request.input_ids) + request.max_new_tokens
+                > bundle.runner.context_limit
+            ):
+                raise ValueError(
+                    f"Prompt ({len(request.input_ids)}) plus output budget ({request.max_new_tokens}) exceeds the {bundle.runner.context_limit}-token context limit"
+                )
             if request.reservation > bundle.capacity_tokens:
-                raise ValueError(f"Request exceeds the configured KV memory budget ({bundle.capacity_tokens} tokens); reduce input/output or increase MINILLM_CACHE_MB")
+                raise ValueError(
+                    f"Request exceeds the configured KV memory budget ({bundle.capacity_tokens} tokens); reduce input/output or increase MINILLM_CACHE_MB"
+                )
 
     def _admit(self, bundle):
         with self._condition:
             candidates = list(self._waiting)
-        other_waiting = any(r.model != bundle.spec.id and not r.handle.cancelled.is_set() for r in candidates)
+        other_waiting = any(
+            r.model != bundle.spec.id and not r.handle.cancelled.is_set()
+            for r in candidates
+        )
         reserved = sum(r.reservation for r in self._active if not r.finished)
         for request in candidates:
-            if len(self._active) >= min(self.settings.max_requests, getattr(bundle.runner, "max_requests", self.settings.max_requests)):
+            if len(self._active) >= min(
+                self.settings.max_requests,
+                getattr(bundle.runner, "max_requests", self.settings.max_requests),
+            ):
                 break
-            if other_waiting and self._turn_requests >= self.settings.max_model_turn_requests:
+            if (
+                other_waiting
+                and self._turn_requests >= self.settings.max_model_turn_requests
+            ):
                 break
             if request.model != bundle.spec.id:
                 continue
@@ -264,17 +362,32 @@ class Engine:
                 request.state = bundle.runner.create_state()
                 if request.initial_inputs:
                     request.state.initial_inputs = request.initial_inputs
-                request.generator = torch.Generator(device=bundle.runner.device).manual_seed(request.seed)
+                request.generator = torch.Generator(
+                    device=bundle.runner.device
+                ).manual_seed(request.seed)
                 request.started = time.perf_counter()
                 if hasattr(bundle.runner, "reuse_prefix"):
-                    request.cached_tokens = bundle.runner.reuse_prefix(request.input_ids, request.state)
+                    request.cached_tokens = bundle.runner.reuse_prefix(
+                        request.input_ids, request.state
+                    )
                     request.prefill_position = request.cached_tokens
                 reserved += request.reservation
                 self._active.append(request)
                 self._turn_requests += 1
-                self._record("admit", request, prompt_tokens=len(request.input_ids), cached_tokens=request.cached_tokens)
+                self._record(
+                    "admit",
+                    request,
+                    prompt_tokens=len(request.input_ids),
+                    cached_tokens=request.cached_tokens,
+                )
             except (ValueError, MemoryError) as exc:
-                self._error(request, exc, "invalid_request" if isinstance(exc, ValueError) else "capacity_exceeded")
+                self._error(
+                    request,
+                    exc,
+                    "invalid_request"
+                    if isinstance(exc, ValueError)
+                    else "capacity_exceeded",
+                )
             except Exception as exc:
                 log.exception("Request preparation failed")
                 self._error(request, exc)
@@ -296,10 +409,18 @@ class Engine:
             with self._condition:
                 if not self._waiting:
                     return
-                current_id = self.registry.current.spec.id if self.registry.current else None
+                current_id = (
+                    self.registry.current.spec.id if self.registry.current else None
+                )
                 next_request = self._waiting[0]
-                if current_id and self._turn_requests >= self.settings.max_model_turn_requests:
-                    next_request = next((r for r in self._waiting if r.model != current_id), next_request)
+                if (
+                    current_id
+                    and self._turn_requests >= self.settings.max_model_turn_requests
+                ):
+                    next_request = next(
+                        (r for r in self._waiting if r.model != current_id),
+                        next_request,
+                    )
                 model_id = next_request.model
             self._turn_requests = 0
             try:
@@ -310,9 +431,15 @@ class Engine:
                 log.exception("Model loading failed")
                 with self._condition:
                     failures = [r for r in self._waiting if r.model == model_id]
-                    self._waiting = deque(r for r in self._waiting if r.model != model_id)
+                    self._waiting = deque(
+                        r for r in self._waiting if r.model != model_id
+                    )
                 for request in failures:
-                    self._error(request, f"Could not load {model_id}: {exc}", "model_load_failed")
+                    self._error(
+                        request,
+                        f"Could not load {model_id}: {exc}",
+                        "model_load_failed",
+                    )
                 return
         bundle = self.registry.current
         self._admit(bundle)
@@ -321,28 +448,46 @@ class Engine:
         if ready:
             try:
                 started = time.perf_counter()
-                logits = bundle.runner.decode([r.output_ids[-1] for r in ready], [r.state for r in ready])
+                logits = bundle.runner.decode(
+                    [r.output_ids[-1] for r in ready], [r.state for r in ready]
+                )
                 if bundle.runner.device.type == "cuda":
                     torch.cuda.synchronize(bundle.runner.device)
                 elapsed = time.perf_counter() - started
-                self._record("decode_batch", batch_size=len(ready), model=bundle.spec.id)
+                self._record(
+                    "decode_batch", batch_size=len(ready), model=bundle.spec.id
+                )
                 for request, row in zip(ready, logits, strict=True):
                     request.decode_seconds.append(elapsed)
                     self._sample(request, row)
             except Exception as exc:
                 log.exception("Decode batch failed")
                 for request in ready:
-                    self._error(request, exc, "capacity_exceeded" if isinstance(exc, MemoryError) else "generation_error")
-        prefilling = next((r for r in self._active if not r.finished and not r.output_ids), None)
+                    self._error(
+                        request,
+                        exc,
+                        "capacity_exceeded"
+                        if isinstance(exc, MemoryError)
+                        else "generation_error",
+                    )
+        prefilling = next(
+            (r for r in self._active if not r.finished and not r.output_ids), None
+        )
         if prefilling:
             request = prefilling
             try:
                 start = request.prefill_position
                 # Multimodal processor tensors align to the entire image-bearing prompt.
-                chunk = len(request.input_ids) if bundle.spec.backend == "multimodal" else self.settings.prefill_chunk
+                chunk = (
+                    len(request.input_ids)
+                    if bundle.spec.backend == "multimodal"
+                    else self.settings.prefill_chunk
+                )
                 end = min(start + chunk, len(request.input_ids))
                 started = time.perf_counter()
-                logits = bundle.runner.prefill(request.input_ids[start:end], request.state)
+                logits = bundle.runner.prefill(
+                    request.input_ids[start:end], request.state
+                )
                 if bundle.runner.device.type == "cuda":
                     torch.cuda.synchronize(bundle.runner.device)
                 request.prefill_seconds += time.perf_counter() - started
@@ -354,7 +499,13 @@ class Engine:
                     self._sample(request, logits)
             except Exception as exc:
                 log.exception("Prefill failed")
-                self._error(request, exc, "capacity_exceeded" if isinstance(exc, MemoryError) else "generation_error")
+                self._error(
+                    request,
+                    exc,
+                    "capacity_exceeded"
+                    if isinstance(exc, MemoryError)
+                    else "generation_error",
+                )
         self._active = [r for r in self._active if not r.finished]
 
     def _update_snapshot(self):
@@ -362,18 +513,28 @@ class Engine:
         device = torch.device(self.settings.device)
         gpu = {}
         if device.type == "cuda" and torch.cuda.is_available():
-            gpu = {"allocated_bytes": torch.cuda.memory_allocated(device), "reserved_bytes": torch.cuda.memory_reserved(device),
-                   "peak_allocated_bytes": torch.cuda.max_memory_allocated(device), "peak_reserved_bytes": torch.cuda.max_memory_reserved(device)}
+            gpu = {
+                "allocated_bytes": torch.cuda.memory_allocated(device),
+                "reserved_bytes": torch.cuda.memory_reserved(device),
+                "peak_allocated_bytes": torch.cuda.max_memory_allocated(device),
+                "peak_reserved_bytes": torch.cuda.max_memory_reserved(device),
+            }
         with self._condition:
-            self._snapshot = {"status": "stopped" if self._stopping else "ready",
-                              "resident_model": bundle.spec.id if bundle else None,
-                              "residency_policy": "one model; switch after active requests drain",
-                              "active_requests": len(self._active), "queued_requests": len(self._waiting),
-                              "completed_requests": self._completed, "failed_requests": self._failed,
-                              "cancelled_requests": self._cancelled, "generated_tokens": self._generated,
-                              "model_load_seconds": dict(self.registry.load_times),
-                              "cache": bundle.runner.stats() if bundle else {}, "gpu": gpu,
-                              "trace": list(self._trace)}
+            self._snapshot = {
+                "status": "stopped" if self._stopping else "ready",
+                "resident_model": bundle.spec.id if bundle else None,
+                "residency_policy": "one model; switch after active requests drain",
+                "active_requests": len(self._active),
+                "queued_requests": len(self._waiting),
+                "completed_requests": self._completed,
+                "failed_requests": self._failed,
+                "cancelled_requests": self._cancelled,
+                "generated_tokens": self._generated,
+                "model_load_seconds": dict(self.registry.load_times),
+                "cache": bundle.runner.stats() if bundle else {},
+                "gpu": gpu,
+                "trace": list(self._trace),
+            }
 
     def _run(self):
         try:

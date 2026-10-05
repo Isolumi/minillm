@@ -50,22 +50,38 @@ class ModelRegistry:
         spec, cfg = self.specs[model_id], self.settings
         device = torch.device(cfg.device)
         if device.type == "cuda" and not torch.cuda.is_available():
-            raise RuntimeError("CUDA is unavailable. Use MINILLM_DEVICE=cpu for the PyTorch fallback.")
+            raise RuntimeError(
+                "CUDA is unavailable. Use MINILLM_DEVICE=cpu for the PyTorch fallback."
+            )
         dtype = getattr(torch, cfg.dtype) if device.type != "cpu" else torch.float32
         if spec.backend == "custom":
             from minillm.model.smollm import SmolLMRunner
             from minillm.tokenization import HFTokenizer, SmolLMTokenizer
-            tokenizer = (SmolLMTokenizer if spec.tokenizer == "custom" else HFTokenizer)(spec.path)
+
+            tokenizer = (
+                SmolLMTokenizer if spec.tokenizer == "custom" else HFTokenizer
+            )(spec.path)
             runner = SmolLMRunner(
-                spec.path, device=device, dtype=dtype, cache_layout=cfg.cache_layout,
-                cache_dtype=cfg.cache_dtype, attention_backend=cfg.attention_backend,
-                max_context=cfg.max_context, max_requests=cfg.max_requests,
-                cache_memory_mb=cfg.cache_memory_mb, prefix_cache=cfg.prefix_cache,
+                spec.path,
+                device=device,
+                dtype=dtype,
+                cache_layout=cfg.cache_layout,
+                cache_dtype=cfg.cache_dtype,
+                attention_backend=cfg.attention_backend,
+                max_context=cfg.max_context,
+                max_requests=cfg.max_requests,
+                cache_memory_mb=cfg.cache_memory_mb,
+                prefix_cache=cfg.prefix_cache,
             )
             capacity = runner.capacity_tokens
         else:
-            runner = HFRunner(spec.path, device=device, dtype=dtype,
-                              max_context=cfg.max_context, multimodal=spec.backend == "multimodal")
+            runner = HFRunner(
+                spec.path,
+                device=device,
+                dtype=dtype,
+                max_context=cfg.max_context,
+                multimodal=spec.backend == "multimodal",
+            )
             tokenizer = None
             # Gemma has heterogeneous layer dimensions. Use the largest configured
             # dimensions for conservative admission, without global attribute access.
@@ -73,7 +89,10 @@ class ModelRegistry:
             kv_elements = 0
             for i in range(config.num_hidden_layers):
                 layer = config.per_layer_config[i]
-                head_dim = getattr(layer, "head_dim", None) or layer.hidden_size // layer.num_attention_heads
+                head_dim = (
+                    getattr(layer, "head_dim", None)
+                    or layer.hidden_size // layer.num_attention_heads
+                )
                 kv_elements += layer.num_key_value_heads * head_dim
             kv_bytes = 2 * kv_elements * runner.model.dtype.itemsize
             capacity = max(1, cfg.cache_memory_mb * 1024 * 1024 // kv_bytes)

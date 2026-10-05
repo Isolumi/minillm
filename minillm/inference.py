@@ -1,4 +1,5 @@
 """Small synchronous Python facade over the same engine used by HTTP."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -20,15 +21,29 @@ class ContextLimitExceeded(ValueError):
 
 
 class InferenceEngine:
-    def __init__(self, model_path: str, *, backend: str = "custom", settings: Settings | None = None):
+    def __init__(
+        self,
+        model_path: str,
+        *,
+        backend: str = "custom",
+        settings: Settings | None = None,
+    ):
         self.model_id = Path(model_path).name
-        spec = ModelSpec(self.model_id, str(Path(model_path).resolve()), backend,
-                         "custom" if backend == "custom" else "hf")
+        spec = ModelSpec(
+            self.model_id,
+            str(Path(model_path).resolve()),
+            backend,
+            "custom" if backend == "custom" else "hf",
+        )
         self.engine = Engine(settings=settings, specs=[spec])
         self.engine.start()
 
-    def generate(self, messages: list[dict], max_new_tokens: int, **sampling) -> GenerationResult:
-        handle = self.engine.submit(uuid4().hex, self.model_id, messages, max_new_tokens, **sampling)
+    def generate(
+        self, messages: list[dict], max_new_tokens: int, **sampling
+    ) -> GenerationResult:
+        handle = self.engine.submit(
+            uuid4().hex, self.model_id, messages, max_new_tokens, **sampling
+        )
         try:
             while True:
                 event = handle.events.get()
@@ -37,7 +52,12 @@ class InferenceEngine:
                         raise ContextLimitExceeded(event["message"])
                     raise RuntimeError(event["message"])
                 if event["type"] == "done":
-                    return GenerationResult(event["text"], event["prompt_tokens"], event["completion_tokens"], event["finish_reason"])
+                    return GenerationResult(
+                        event["text"],
+                        event["prompt_tokens"],
+                        event["completion_tokens"],
+                        event["finish_reason"],
+                    )
         except BaseException:
             handle.cancel()
             raise

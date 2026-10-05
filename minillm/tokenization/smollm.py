@@ -7,14 +7,13 @@ Hugging Face or the Rust ``tokenizers`` package.
 
 from __future__ import annotations
 
-import json
 import heapq
+import json
 from functools import lru_cache
 from pathlib import Path
 
 import regex
 from jinja2 import Environment
-
 
 # ByteLevel's GPT-2 pretokenization expression.
 _BYTE_LEVEL_PATTERN = regex.compile(
@@ -72,7 +71,9 @@ class SmolLMTokenizer:
             or model.get("end_of_word_suffix") is not None
             or model.get("ignore_merges")
         ):
-            raise ValueError("unsupported tokenizer configuration; expected SmolLM2 byte BPE")
+            raise ValueError(
+                "unsupported tokenizer configuration; expected SmolLM2 byte BPE"
+            )
 
         self.vocab: dict[str, int] = model["vocab"]
         self.id_to_token = {value: key for key, value in self.vocab.items()}
@@ -82,23 +83,33 @@ class SmolLMTokenizer:
         }
         added = data["added_tokens"]
         if any(
-            item["lstrip"] or item["rstrip"] or item["single_word"]
-            or item["normalized"] or not item["special"]
+            item["lstrip"]
+            or item["rstrip"]
+            or item["single_word"]
+            or item["normalized"]
+            or not item["special"]
             for item in added
         ):
             raise ValueError("unsupported SmolLM2 added-token behavior")
         self.special_ids = {item["id"] for item in added}
         self.special_to_id = {item["content"]: item["id"] for item in added}
         self._special_pattern = regex.compile(
-            "|".join(regex.escape(token) for token in sorted(self.special_to_id, key=len, reverse=True))
+            "|".join(
+                regex.escape(token)
+                for token in sorted(self.special_to_id, key=len, reverse=True)
+            )
         )
-        self._chat_template = Environment(autoescape=False).from_string(config["chat_template"])
+        self._chat_template = Environment(autoescape=False).from_string(
+            config["chat_template"]
+        )
         self.eos_token_ids = {self.special_to_id[config["eos_token"]]}
         # Cache pieces per instance so unloading a model can release its vocabulary.
         self._cached_bpe = lru_cache(maxsize=8192)(self._merge_piece)
 
     def _bpe(self, piece: str) -> tuple[int, ...]:
-        return self._cached_bpe(piece) if len(piece) <= 256 else self._merge_piece(piece)
+        return (
+            self._cached_bpe(piece) if len(piece) <= 256 else self._merge_piece(piece)
+        )
 
     def _merge_piece(self, piece: str) -> tuple[int, ...]:
         """Merge the lowest-ranked adjacent pair, with O(n log n) heap updates."""
@@ -118,7 +129,9 @@ class SmolLMTokenizer:
                 return
             rank = self.merge_ranks.get((symbols[left], symbols[right]))
             if rank is not None:
-                heapq.heappush(pending, (rank, left, right, versions[left], versions[right]))
+                heapq.heappush(
+                    pending, (rank, left, right, versions[left], versions[right])
+                )
 
         for i in range(count - 1):
             push(i)
@@ -161,7 +174,7 @@ class SmolLMTokenizer:
         offset = 0
         spans = []
         for digit in _DIGIT_PATTERN.finditer(text):
-            spans.extend((text[offset:digit.start()], digit.group()))
+            spans.extend((text[offset : digit.start()], digit.group()))
             offset = digit.end()
         spans.append(text[offset:])
         for span in spans:
@@ -214,7 +227,12 @@ class HFTokenizer:
 def load_hf_tokenizer(model_path):
     """Preserve the checkpoint pipeline instead of reconstructing GPT2 defaults."""
     from transformers import AutoTokenizer, PreTrainedTokenizerFast
+
     path = Path(model_path)
     config = json.loads((path / "tokenizer_config.json").read_text())
-    cls = PreTrainedTokenizerFast if config.get("tokenizer_class") in {"GPT2Tokenizer", "GPT2TokenizerFast"} else AutoTokenizer
+    cls = (
+        PreTrainedTokenizerFast
+        if config.get("tokenizer_class") in {"GPT2Tokenizer", "GPT2TokenizerFast"}
+        else AutoTokenizer
+    )
     return cls.from_pretrained(path, local_files_only=True, trust_remote_code=False)

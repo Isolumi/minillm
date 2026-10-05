@@ -42,7 +42,18 @@ class APIError(Exception):
 def _error(message: str, code: str, param: str | None = None) -> dict[str, Any]:
     return {
         "message": message,
-        "type": "server_error" if code in {"server_error", "service_unavailable", "generation_error", "engine_error", "model_load_failed", "decoding_error", "capacity_exceeded"} else "invalid_request_error",
+        "type": "server_error"
+        if code
+        in {
+            "server_error",
+            "service_unavailable",
+            "generation_error",
+            "engine_error",
+            "model_load_failed",
+            "decoding_error",
+            "capacity_exceeded",
+        }
+        else "invalid_request_error",
         "param": param,
         "code": code,
     }
@@ -90,6 +101,7 @@ app = FastAPI(lifespan=lifespan)
 
 class BodyLimitMiddleware:
     """Bound JSON before parsing, including chunked uploads without Content-Length."""
+
     def __init__(self, app):
         self.app = app
 
@@ -104,7 +116,14 @@ class BodyLimitMiddleware:
             chunk = message.get("body", b"")
             size += len(chunk)
             if size > _MAX_HISTORY_BYTES:
-                response = JSONResponse({"error": _error("Request body exceeds 16 MiB", "request_too_large")}, status_code=413)
+                response = JSONResponse(
+                    {
+                        "error": _error(
+                            "Request body exceeds 16 MiB", "request_too_large"
+                        )
+                    },
+                    status_code=413,
+                )
                 return await response(scope, receive, send)
             chunks.append(chunk)
             if not message.get("more_body", False):
@@ -127,39 +146,56 @@ app.add_middleware(BodyLimitMiddleware)
 
 @app.exception_handler(APIError)
 async def api_error_handler(_request: Request, exc: APIError) -> JSONResponse:
-    return JSONResponse({"error": _error(exc.message, exc.code, exc.param)}, status_code=exc.status)
+    return JSONResponse(
+        {"error": _error(exc.message, exc.code, exc.param)}, status_code=exc.status
+    )
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_error_handler(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
     first = exc.errors()[0]
     location = first.get("loc", ())
     param = ".".join(str(part) for part in location[1:]) if len(location) > 1 else None
     message = first.get("msg", "Invalid request")
-    return JSONResponse({"error": _error(message, "invalid_request", param)}, status_code=400)
+    return JSONResponse(
+        {"error": _error(message, "invalid_request", param)}, status_code=400
+    )
 
 
 def _check_image(image_url: str) -> None:
     match = _IMAGE_URI.fullmatch(image_url)
     if match is None:
-        raise APIError(400, "Only PNG, JPEG, and WebP data URI images are supported", "invalid_image", "input")
+        raise APIError(
+            400,
+            "Only PNG, JPEG, and WebP data URI images are supported",
+            "invalid_image",
+            "input",
+        )
     encoded = match.group(2)
     if len(encoded) > (_MAX_IMAGE_BYTES + 2) // 3 * 4:
         raise APIError(400, "Image exceeds the 4 MiB limit", "invalid_image", "input")
     try:
         raw = base64.b64decode(encoded, validate=True)
     except binascii.Error:
-        raise APIError(400, "Invalid base64 image data", "invalid_image", "input") from None
+        raise APIError(
+            400, "Invalid base64 image data", "invalid_image", "input"
+        ) from None
     if len(raw) > _MAX_IMAGE_BYTES:
         raise APIError(400, "Image exceeds the 4 MiB limit", "invalid_image", "input")
     image_type = match.group(1).lower()
     valid_header = (
-        raw.startswith(b"\x89PNG\r\n\x1a\n") if image_type == "png" else
-        raw.startswith(b"\xff\xd8") if image_type == "jpeg" else
-        raw.startswith(b"RIFF") and raw[8:12] == b"WEBP"
+        raw.startswith(b"\x89PNG\r\n\x1a\n")
+        if image_type == "png"
+        else raw.startswith(b"\xff\xd8")
+        if image_type == "jpeg"
+        else raw.startswith(b"RIFF") and raw[8:12] == b"WEBP"
     )
     if not valid_header:
-        raise APIError(400, "Image data does not match its declared type", "invalid_image", "input")
+        raise APIError(
+            400, "Image data does not match its declared type", "invalid_image", "input"
+        )
 
 
 def _new_messages(value: str | list[Any]) -> tuple[dict[str, Any], ...]:
@@ -174,46 +210,103 @@ def _new_messages(value: str | list[Any]) -> tuple[dict[str, Any], ...]:
         content = message.content
         if isinstance(content, list):
             if not content:
-                raise APIError(400, "Message content cannot be empty", "invalid_input", f"input.{index}.content")
+                raise APIError(
+                    400,
+                    "Message content cannot be empty",
+                    "invalid_input",
+                    f"input.{index}.content",
+                )
             parts = [part.model_dump(exclude_unset=True) for part in content]
             for part in parts:
                 if part["type"] == "input_image":
                     if message.role != "user":
-                        raise APIError(400, "Images are only supported in user messages", "invalid_input", f"input.{index}.content")
+                        raise APIError(
+                            400,
+                            "Images are only supported in user messages",
+                            "invalid_input",
+                            f"input.{index}.content",
+                        )
                     _check_image(part["image_url"])
                 elif part["type"] == "output_text" and message.role != "assistant":
-                    raise APIError(400, "output_text is only supported in assistant messages", "invalid_input", f"input.{index}.content")
+                    raise APIError(
+                        400,
+                        "output_text is only supported in assistant messages",
+                        "invalid_input",
+                        f"input.{index}.content",
+                    )
                 elif part["type"] == "input_text" and message.role == "assistant":
-                    raise APIError(400, "Use output_text in assistant messages", "invalid_input", f"input.{index}.content")
+                    raise APIError(
+                        400,
+                        "Use output_text in assistant messages",
+                        "invalid_input",
+                        f"input.{index}.content",
+                    )
             content = parts
         elif not content:
-            raise APIError(400, "Message content cannot be empty", "invalid_input", f"input.{index}.content")
+            raise APIError(
+                400,
+                "Message content cannot be empty",
+                "invalid_input",
+                f"input.{index}.content",
+            )
         messages.append({"role": message.role, "content": content})
     if messages[-1]["role"] != "user":
-        raise APIError(400, "Last input message must be from user", "invalid_input", "input")
+        raise APIError(
+            400, "Last input message must be from user", "invalid_input", "input"
+        )
     return tuple(messages)
 
 
-def _prepare_messages(request: CreateResponseRequest, store: ResponseStore) -> tuple[dict[str, Any], ...]:
+def _prepare_messages(
+    request: CreateResponseRequest, store: ResponseStore
+) -> tuple[dict[str, Any], ...]:
     history: tuple[dict[str, Any], ...] = ()
     if request.previous_response_id:
         previous = store.get(request.previous_response_id)
         if previous is None:
-            raise APIError(404, "Previous response not found", "response_not_found", "previous_response_id")
+            raise APIError(
+                404,
+                "Previous response not found",
+                "response_not_found",
+                "previous_response_id",
+            )
         if previous.response.model != request.model:
-            raise APIError(400, "Previous response belongs to another model", "model_mismatch", "previous_response_id")
+            raise APIError(
+                400,
+                "Previous response belongs to another model",
+                "model_mismatch",
+                "previous_response_id",
+            )
         if previous.response.status not in {"completed", "incomplete"}:
-            raise APIError(400, "Previous response is not complete", "invalid_previous_response", "previous_response_id")
+            raise APIError(
+                400,
+                "Previous response is not complete",
+                "invalid_previous_response",
+                "previous_response_id",
+            )
         history = previous.messages
     messages = history + _new_messages(request.input)
     if len(messages) > _MAX_HISTORY_MESSAGES:
-        raise APIError(400, "Conversation exceeds 64 messages", "history_limit_exceeded", "input")
-    if sum(len(str(message).encode("utf-8")) for message in messages) + len((request.instructions or "").encode("utf-8")) > _MAX_HISTORY_BYTES:
-        raise APIError(400, "Conversation exceeds the 16 MiB history limit", "history_limit_exceeded", "input")
+        raise APIError(
+            400, "Conversation exceeds 64 messages", "history_limit_exceeded", "input"
+        )
+    if (
+        sum(len(str(message).encode("utf-8")) for message in messages)
+        + len((request.instructions or "").encode("utf-8"))
+        > _MAX_HISTORY_BYTES
+    ):
+        raise APIError(
+            400,
+            "Conversation exceeds the 16 MiB history limit",
+            "history_limit_exceeded",
+            "input",
+        )
     return messages
 
 
-def _initial_response(request: CreateResponseRequest, response_id: str) -> ModelResponse:
+def _initial_response(
+    request: CreateResponseRequest, response_id: str
+) -> ModelResponse:
     return ModelResponse(
         id=response_id,
         created_at=int(time.time()),
@@ -238,45 +331,76 @@ def _finish(active: ActiveResponse, event: dict[str, Any]) -> ModelResponse:
     response = active.response
     if event["type"] == "error":
         engine_code = str(event.get("code", "server_error"))
-        code = "invalid_prompt" if _runtime_status(engine_code) == 400 else "server_error"
-        response = response.model_copy(update={
-            "status": "failed",
-            "completed_at": int(time.time()),
-            "error": _error(str(event.get("message", "Generation failed")), code),
-        })
+        code = (
+            "invalid_prompt" if _runtime_status(engine_code) == 400 else "server_error"
+        )
+        response = response.model_copy(
+            update={
+                "status": "failed",
+                "completed_at": int(time.time()),
+                "error": _error(str(event.get("message", "Generation failed")), code),
+            }
+        )
     else:
         reason = event.get("finish_reason", "stop")
-        status = "cancelled" if active.cancel_requested or reason == "cancelled" else "incomplete" if reason == "length" else "completed"
-        output_status = "incomplete" if status in {"incomplete", "cancelled"} else "completed"
+        status = (
+            "cancelled"
+            if active.cancel_requested or reason == "cancelled"
+            else "incomplete"
+            if reason == "length"
+            else "completed"
+        )
+        output_status = (
+            "incomplete" if status in {"incomplete", "cancelled"} else "completed"
+        )
         text = str(event.get("text", ""))
         prompt_tokens = int(event.get("prompt_tokens", 0))
         completion_tokens = int(event.get("completion_tokens", 0))
-        response = response.model_copy(update={
-            "status": status,
-            "completed_at": int(time.time()),
-            "incomplete_details": {"reason": "max_output_tokens"} if status == "incomplete" else None,
-            "output": [ResponseOutputMessage(
-                id=active.output_id,
-                status=output_status,
-                content=[ResponseOutputText(text=text)],
-            )],
-            "usage": ResponseUsage(
-                input_tokens=prompt_tokens,
-                output_tokens=completion_tokens,
-                total_tokens=prompt_tokens + completion_tokens,
-                input_tokens_details={"cached_tokens": int(event.get("cached_tokens", 0)), "cache_write_tokens": int(event.get("cache_write_tokens", 0))},
-            ),
-        })
+        response = response.model_copy(
+            update={
+                "status": status,
+                "completed_at": int(time.time()),
+                "incomplete_details": {"reason": "max_output_tokens"}
+                if status == "incomplete"
+                else None,
+                "output": [
+                    ResponseOutputMessage(
+                        id=active.output_id,
+                        status=output_status,
+                        content=[ResponseOutputText(text=text)],
+                    )
+                ],
+                "usage": ResponseUsage(
+                    input_tokens=prompt_tokens,
+                    output_tokens=completion_tokens,
+                    total_tokens=prompt_tokens + completion_tokens,
+                    input_tokens_details={
+                        "cached_tokens": int(event.get("cached_tokens", 0)),
+                        "cache_write_tokens": int(event.get("cache_write_tokens", 0)),
+                    },
+                ),
+            }
+        )
     active.response = response
     return response
 
 
 def _retain(app: FastAPI, active: ActiveResponse) -> None:
     app.state.active.pop(active.response.id, None)
-    if active.store and active.response.status in {"completed", "incomplete", "cancelled", "failed"}:
+    if active.store and active.response.status in {
+        "completed",
+        "incomplete",
+        "cancelled",
+        "failed",
+    }:
         messages = active.messages
         if active.response.output:
-            messages += ({"role": "assistant", "content": active.response.output[0].content[0].text},)
+            messages += (
+                {
+                    "role": "assistant",
+                    "content": active.response.output[0].content[0].text,
+                },
+            )
         app.state.responses.save(StoredResponse(active.response, messages))
 
 
@@ -299,20 +423,27 @@ async def _drain_cancelled(app: FastAPI, active: ActiveResponse) -> None:
 
 
 def _cleanup(app: FastAPI, active: ActiveResponse) -> None:
-    if active.response.status in {"completed", "incomplete", "failed"} or (active.response.status == "cancelled" and active.response.usage is not None):
+    if active.response.status in {"completed", "incomplete", "failed"} or (
+        active.response.status == "cancelled" and active.response.usage is not None
+    ):
         _retain(app, active)
         return
     active.cancel()
-    active.response = active.response.model_copy(update={
-        "status": "cancelled", "completed_at": int(time.time()),
-        "incomplete_details": None,
-    })
+    active.response = active.response.model_copy(
+        update={
+            "status": "cancelled",
+            "completed_at": int(time.time()),
+            "incomplete_details": None,
+        }
+    )
     task = asyncio.create_task(_drain_cancelled(app, active))
     app.state.drainers.add(task)
     task.add_done_callback(app.state.drainers.discard)
 
 
-async def _next_event(request: Request, active: ActiveResponse) -> dict[str, Any] | None:
+async def _next_event(
+    request: Request, active: ActiveResponse
+) -> dict[str, Any] | None:
     while True:
         if await request.is_disconnected():
             active.cancel()
@@ -332,7 +463,9 @@ def _sse(name: str, data: dict[str, Any], sequence_number: int) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
 
 
-async def _stream_events(request: Request, active: ActiveResponse) -> AsyncIterator[str]:
+async def _stream_events(
+    request: Request, active: ActiveResponse
+) -> AsyncIterator[str]:
     sequence = 0
     terminal = False
 
@@ -344,11 +477,24 @@ async def _stream_events(request: Request, active: ActiveResponse) -> AsyncItera
     try:
         yield emit("response.created", response=active.response.model_dump(mode="json"))
         active.response = active.response.model_copy(update={"status": "in_progress"})
-        yield emit("response.in_progress", response=active.response.model_dump(mode="json"))
-        item = ResponseOutputMessage(id=active.output_id, status="in_progress", content=[])
-        yield emit("response.output_item.added", output_index=0, item=item.model_dump(mode="json"))
-        yield emit("response.content_part.added", item_id=active.output_id, output_index=0, content_index=0,
-                   part=ResponseOutputText(text="").model_dump(mode="json"))
+        yield emit(
+            "response.in_progress", response=active.response.model_dump(mode="json")
+        )
+        item = ResponseOutputMessage(
+            id=active.output_id, status="in_progress", content=[]
+        )
+        yield emit(
+            "response.output_item.added",
+            output_index=0,
+            item=item.model_dump(mode="json"),
+        )
+        yield emit(
+            "response.content_part.added",
+            item_id=active.output_id,
+            output_index=0,
+            content_index=0,
+            part=ResponseOutputText(text="").model_dump(mode="json"),
+        )
         emitted = ""
         while True:
             event = await _next_event(request, active)
@@ -358,8 +504,13 @@ async def _stream_events(request: Request, active: ActiveResponse) -> AsyncItera
                 delta = str(event.get("text", ""))
                 if delta:
                     emitted += delta
-                    yield emit("response.output_text.delta", item_id=active.output_id, output_index=0,
-                               content_index=0, delta=delta)
+                    yield emit(
+                        "response.output_text.delta",
+                        item_id=active.output_id,
+                        output_index=0,
+                        content_index=0,
+                        delta=delta,
+                    )
                 continue
             if event.get("type") not in {"done", "error"}:
                 continue
@@ -368,15 +519,39 @@ async def _stream_events(request: Request, active: ActiveResponse) -> AsyncItera
                 text = response.output[0].content[0].text
                 # The worker emits text deltas. A final suffix can arise from decoder flushing.
                 if text.startswith(emitted) and len(text) > len(emitted):
-                    yield emit("response.output_text.delta", item_id=active.output_id, output_index=0,
-                               content_index=0, delta=text[len(emitted):])
-                yield emit("response.output_text.done", item_id=active.output_id, output_index=0,
-                           content_index=0, text=text)
-                yield emit("response.content_part.done", item_id=active.output_id, output_index=0,
-                           content_index=0, part=response.output[0].content[0].model_dump(mode="json"))
-                yield emit("response.output_item.done", output_index=0,
-                           item=response.output[0].model_dump(mode="json"))
-            name = "response.failed" if response.status == "failed" else "response.incomplete" if response.status in {"incomplete", "cancelled"} else "response.completed"
+                    yield emit(
+                        "response.output_text.delta",
+                        item_id=active.output_id,
+                        output_index=0,
+                        content_index=0,
+                        delta=text[len(emitted) :],
+                    )
+                yield emit(
+                    "response.output_text.done",
+                    item_id=active.output_id,
+                    output_index=0,
+                    content_index=0,
+                    text=text,
+                )
+                yield emit(
+                    "response.content_part.done",
+                    item_id=active.output_id,
+                    output_index=0,
+                    content_index=0,
+                    part=response.output[0].content[0].model_dump(mode="json"),
+                )
+                yield emit(
+                    "response.output_item.done",
+                    output_index=0,
+                    item=response.output[0].model_dump(mode="json"),
+                )
+            name = (
+                "response.failed"
+                if response.status == "failed"
+                else "response.incomplete"
+                if response.status in {"incomplete", "cancelled"}
+                else "response.completed"
+            )
             # A client may continue immediately on receipt of the terminal event.
             terminal = True
             _retain(request.app, active)
@@ -401,8 +576,10 @@ async def index() -> HTMLResponse:
 @app.get("/health")
 async def health(request: Request) -> JSONResponse:
     status = request.app.state.engine.stats().get("status")
-    return JSONResponse({"status": "ok" if status in {"ready", "loading"} else status},
-                        status_code=200 if status in {"ready", "loading"} else 503)
+    return JSONResponse(
+        {"status": "ok" if status in {"ready", "loading"} else status},
+        status_code=200 if status in {"ready", "loading"} else 503,
+    )
 
 
 @app.get("/v1/models")
@@ -417,12 +594,17 @@ async def metrics(request: Request) -> dict[str, Any]:
 
 
 @app.post("/v1/responses", response_model=ModelResponse)
-async def create_response(request: Request, body: CreateResponseRequest) -> ModelResponse | StreamingResponse:
+async def create_response(
+    request: Request, body: CreateResponseRequest
+) -> ModelResponse | StreamingResponse:
     messages = _prepare_messages(body, request.app.state.responses)
     response_id = f"resp_{uuid4().hex}"
     prompt_messages = list(messages)
     if body.instructions:
-        prompt_messages = [{"role": "system", "content": body.instructions}, *prompt_messages]
+        prompt_messages = [
+            {"role": "system", "content": body.instructions},
+            *prompt_messages,
+        ]
     try:
         handle = request.app.state.engine.submit(
             request_id=response_id,
@@ -434,16 +616,27 @@ async def create_response(request: Request, body: CreateResponseRequest) -> Mode
             seed=body.seed,
         )
     except KeyError:
-        raise APIError(404, f"Model '{body.model}' not found", "model_not_found", "model") from None
+        raise APIError(
+            404, f"Model '{body.model}' not found", "model_not_found", "model"
+        ) from None
     except ValueError as exc:
         raise APIError(400, str(exc), "invalid_request") from None
     except RuntimeError as exc:
         raise APIError(503, str(exc), "service_unavailable") from None
-    active = ActiveResponse(_initial_response(body, response_id), messages, handle, body.store, f"msg_{uuid4().hex}")
+    active = ActiveResponse(
+        _initial_response(body, response_id),
+        messages,
+        handle,
+        body.store,
+        f"msg_{uuid4().hex}",
+    )
     request.app.state.active[response_id] = active
     if body.stream:
-        return StreamingResponse(_stream_events(request, active), media_type="text/event-stream",
-                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        return StreamingResponse(
+            _stream_events(request, active),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
     try:
         active.response = active.response.model_copy(update={"status": "in_progress"})
         while True:
@@ -456,15 +649,20 @@ async def create_response(request: Request, body: CreateResponseRequest) -> Mode
                 response = _finish(active, event)
                 if response.status == "failed":
                     error = response.error or {}
-                    raise APIError(_runtime_status(str(error.get("code", "server_error"))),
-                                   str(error.get("message", "Generation failed")),
-                                   str(error.get("code", "server_error")))
+                    raise APIError(
+                        _runtime_status(str(error.get("code", "server_error"))),
+                        str(error.get("message", "Generation failed")),
+                        str(error.get("code", "server_error")),
+                    )
                 return response
     except asyncio.CancelledError:
         active.cancel()
         raise
     finally:
-        if active.response.status in {"queued", "in_progress"} or active.cancel_requested:
+        if (
+            active.response.status in {"queued", "in_progress"}
+            or active.cancel_requested
+        ):
             # A terminal cancellation has already consumed its worker event.
             if active.response.usage is not None:
                 _retain(request.app, active)
@@ -506,8 +704,11 @@ async def cancel_response(request: Request, response_id: str) -> ModelResponse:
             raise APIError(404, "Response not found", "response_not_found")
         return stored.response
     active.cancel()
-    active.response = active.response.model_copy(update={
-        "status": "cancelled", "completed_at": int(time.time()),
-        "incomplete_details": None,
-    })
+    active.response = active.response.model_copy(
+        update={
+            "status": "cancelled",
+            "completed_at": int(time.time()),
+            "incomplete_details": None,
+        }
+    )
     return active.response

@@ -1,9 +1,11 @@
 """A model-owned fixed KV pool with explicit request and prefix ownership."""
-from collections import OrderedDict
-from dataclasses import dataclass, field
+
 import hashlib
 import math
 import struct
+from collections import OrderedDict
+from dataclasses import dataclass, field
+
 import torch
 
 
@@ -16,23 +18,61 @@ class CacheState:
 
 
 class PagedKVCache:
-    def __init__(self, num_layers, num_kv_heads, head_dim, *, device="cuda", dtype=torch.float16,
-                 cache_dtype="auto", max_context=8192, max_requests=8, memory_mb=2048,
-                 block_size=16, prefix_cache=True, model_id="model"):
-        if min(num_layers, num_kv_heads, head_dim, max_context, max_requests, memory_mb, block_size) <= 0:
+    def __init__(
+        self,
+        num_layers,
+        num_kv_heads,
+        head_dim,
+        *,
+        device="cuda",
+        dtype=torch.float16,
+        cache_dtype="auto",
+        max_context=8192,
+        max_requests=8,
+        memory_mb=2048,
+        block_size=16,
+        prefix_cache=True,
+        model_id="model",
+    ):
+        if (
+            min(
+                num_layers,
+                num_kv_heads,
+                head_dim,
+                max_context,
+                max_requests,
+                memory_mb,
+                block_size,
+            )
+            <= 0
+        ):
             raise ValueError("Cache dimensions and limits must be positive")
         if cache_dtype not in ("auto", "float16", "fp16", "bfloat16", "bf16", "int8"):
             raise ValueError("cache_dtype must be auto, float16, bfloat16, or int8")
         self.dtype, self.device = dtype, torch.device(device)
-        self.storage_dtype = {"float16": torch.float16, "fp16": torch.float16,
-                              "bfloat16": torch.bfloat16, "bf16": torch.bfloat16,
-                              "int8": torch.int8}.get(cache_dtype, dtype)
+        self.storage_dtype = {
+            "float16": torch.float16,
+            "fp16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "bf16": torch.bfloat16,
+            "int8": torch.int8,
+        }.get(cache_dtype, dtype)
         self.quantized = self.storage_dtype == torch.int8
-        self.block_size, self.max_context, self.max_requests = block_size, max_context, max_requests
+        self.block_size, self.max_context, self.max_requests = (
+            block_size,
+            max_context,
+            max_requests,
+        )
         self.prefix_enabled = prefix_cache
         self.model_id = model_id.encode()
         element_bytes = torch.empty((), dtype=self.storage_dtype).element_size()
-        self.bytes_per_block = 2 * num_layers * block_size * num_kv_heads * (head_dim * element_bytes + (4 if self.quantized else 0))
+        self.bytes_per_block = (
+            2
+            * num_layers
+            * block_size
+            * num_kv_heads
+            * (head_dim * element_bytes + (4 if self.quantized else 0))
+        )
         needed = max_requests * math.ceil(max_context / block_size)
         self.num_blocks = min(needed, int(memory_mb * 1024**2) // self.bytes_per_block)
         if self.num_blocks < 1:
@@ -42,7 +82,9 @@ class PagedKVCache:
         self.values = torch.empty_like(self.keys)
         self.key_scales = self.value_scales = None
         if self.quantized:
-            self.key_scales = torch.empty(shape[:-1] + (1,), dtype=torch.float32, device=self.device)
+            self.key_scales = torch.empty(
+                shape[:-1] + (1,), dtype=torch.float32, device=self.device
+            )
             self.value_scales = torch.empty_like(self.key_scales)
         self.free = list(reversed(range(self.num_blocks)))
         self.references = [0] * self.num_blocks
@@ -73,17 +115,23 @@ class PagedKVCache:
             self._drop(block)
             self.prefix_evictions += 1
         if len(self.free) < count:
-            raise MemoryError(f"KV cache exhausted: need {count} blocks, {len(self.free)} free; lower concurrency/context or increase cache_memory_mb")
+            raise MemoryError(
+                f"KV cache exhausted: need {count} blocks, {len(self.free)} free; lower concurrency/context or increase cache_memory_mb"
+            )
 
     def reserve_batch(self, states, counts):
         if len(states) != len(counts) or len(set(states)) != len(states):
-            raise ValueError("Cache batch must contain distinct states and matching counts")
+            raise ValueError(
+                "Cache batch must contain distinct states and matching counts"
+            )
         extra = []
         for state, count in zip(states, counts):
             self._check(state)
             if count < 1 or state.length + count > self.max_context:
                 raise ValueError(f"Append exceeds context limit {self.max_context}")
-            extra.append(math.ceil((state.length + count) / self.block_size) - len(state.blocks))
+            extra.append(
+                math.ceil((state.length + count) / self.block_size) - len(state.blocks)
+            )
         self._make_room(sum(extra))
         for state, count, blocks in zip(states, counts, extra):
             for _ in range(blocks):
@@ -106,11 +154,19 @@ class PagedKVCache:
             within = position % self.block_size
             count = min(len(key) - offset, self.block_size - within)
             target = (layer, block, slice(within, within + count))
-            for source, storage, scales in ((key, self.keys, self.key_scales), (value, self.values, self.value_scales)):
-                chunk = source[offset:offset + count]
+            for source, storage, scales in (
+                (key, self.keys, self.key_scales),
+                (value, self.values, self.value_scales),
+            ):
+                chunk = source[offset : offset + count]
                 if self.quantized:
-                    scale = chunk.float().abs().amax(dim=-1, keepdim=True).clamp_min(1e-12) / 127
-                    storage[target] = (chunk.float() / scale).round().clamp(-127, 127).to(torch.int8)
+                    scale = (
+                        chunk.float().abs().amax(dim=-1, keepdim=True).clamp_min(1e-12)
+                        / 127
+                    )
+                    storage[target] = (
+                        (chunk.float() / scale).round().clamp(-127, 127).to(torch.int8)
+                    )
                     scales[target] = scale
                 else:
                     storage[target] = chunk
@@ -119,25 +175,44 @@ class PagedKVCache:
     def read(self, layer, state):
         self._check(state)
         blocks = torch.tensor(state.blocks, device=self.device, dtype=torch.long)
-        key = self.keys[layer].index_select(0, blocks).flatten(0, 1)[:state.length]
-        value = self.values[layer].index_select(0, blocks).flatten(0, 1)[:state.length]
+        key = self.keys[layer].index_select(0, blocks).flatten(0, 1)[: state.length]
+        value = self.values[layer].index_select(0, blocks).flatten(0, 1)[: state.length]
         if self.quantized:
-            ks = self.key_scales[layer].index_select(0, blocks).flatten(0, 1)[:state.length]
-            vs = self.value_scales[layer].index_select(0, blocks).flatten(0, 1)[:state.length]
-            key, value = (key.float() * ks).to(self.dtype), (value.float() * vs).to(self.dtype)
+            ks = (
+                self.key_scales[layer]
+                .index_select(0, blocks)
+                .flatten(0, 1)[: state.length]
+            )
+            vs = (
+                self.value_scales[layer]
+                .index_select(0, blocks)
+                .flatten(0, 1)[: state.length]
+            )
+            key, value = (
+                (key.float() * ks).to(self.dtype),
+                (value.float() * vs).to(self.dtype),
+            )
         return key, value
 
     def metadata(self, states):
         width = max(len(state.blocks) for state in states)
         tables = [state.blocks + [0] * (width - len(state.blocks)) for state in states]
-        return (torch.tensor(tables, dtype=torch.int32, device=self.device),
-                torch.tensor([state.length for state in states], dtype=torch.int32, device=self.device))
+        return (
+            torch.tensor(tables, dtype=torch.int32, device=self.device),
+            torch.tensor(
+                [state.length for state in states],
+                dtype=torch.int32,
+                device=self.device,
+            ),
+        )
 
     def _prefix_keys(self, token_ids):
         digest = hashlib.sha256(self.model_id).digest()
         for start in range(0, len(token_ids) - self.block_size + 1, self.block_size):
-            block = token_ids[start:start + self.block_size]
-            digest = hashlib.sha256(digest + struct.pack(f"<{len(block)}q", *block)).digest()
+            block = token_ids[start : start + self.block_size]
+            digest = hashlib.sha256(
+                digest + struct.pack(f"<{len(block)}q", *block)
+            ).digest()
             yield digest
 
     def reuse_prefix(self, token_ids, state):
@@ -163,7 +238,7 @@ class PagedKVCache:
         self._check(state)
         if not self.prefix_enabled:
             return
-        for index, key in enumerate(self._prefix_keys(token_ids[:state.length])):
+        for index, key in enumerate(self._prefix_keys(token_ids[: state.length])):
             if key not in self.prefixes:
                 block = state.blocks[index]
                 self.references[block] += 1
@@ -183,12 +258,20 @@ class PagedKVCache:
 
     def stats(self):
         used = self.num_blocks - len(self.free)
-        return {"layout": "paged", "cache_dtype": str(self.storage_dtype).removeprefix("torch."),
-                "allocated_bytes": self.num_blocks * self.bytes_per_block,
-                "used_bytes": used * self.bytes_per_block, "bytes_per_token": self.bytes_per_block // self.block_size,
-                "num_blocks": self.num_blocks, "free_blocks": len(self.free), "used_blocks": used,
-                "block_size": self.block_size, "active_requests": len(self.states),
-                "capacity_tokens": self.num_blocks * self.block_size,
-                "active_tokens": sum(state.length for state in self.states),
-                "prefix_blocks": len(self.prefixes), "prefix_hit_tokens": self.prefix_hit_tokens,
-                "prefix_evictions": self.prefix_evictions}
+        return {
+            "layout": "paged",
+            "cache_dtype": str(self.storage_dtype).removeprefix("torch."),
+            "allocated_bytes": self.num_blocks * self.bytes_per_block,
+            "used_bytes": used * self.bytes_per_block,
+            "bytes_per_token": self.bytes_per_block // self.block_size,
+            "num_blocks": self.num_blocks,
+            "free_blocks": len(self.free),
+            "used_blocks": used,
+            "block_size": self.block_size,
+            "active_requests": len(self.states),
+            "capacity_tokens": self.num_blocks * self.block_size,
+            "active_tokens": sum(state.length for state in self.states),
+            "prefix_blocks": len(self.prefixes),
+            "prefix_hit_tokens": self.prefix_hit_tokens,
+            "prefix_evictions": self.prefix_evictions,
+        }

@@ -77,7 +77,9 @@ class ModelResponse(StrictModel):
     object: Literal["response"] = "response"
     created_at: int
     completed_at: int | None = None
-    status: Literal["queued", "in_progress", "completed", "incomplete", "failed", "cancelled"]
+    status: Literal[
+        "queued", "in_progress", "completed", "incomplete", "failed", "cancelled"
+    ]
     error: dict[str, Any] | None = None
     incomplete_details: dict[str, str] | None = None
     model: str
