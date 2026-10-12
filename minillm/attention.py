@@ -1,64 +1,31 @@
 import math
 
-import numpy as np
 import torch
-from torch import nn
 
+def reference_attention(
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        query_positions: torch.Tensor,
+        key_positions: torch.Tensor
+) -> torch.Tensor:
+    # q: [B, Tq, Hq, D]
+    # k/v: [B, Tk, Hkv, D]
+    
+    batch, query_tokens, query_heads, head_dim = q.shape
+    key_batch, key_tokens, kv_heads, key_dim = k.shape
 
-# TODO: batching, multihead, kv cache
-class Attention(nn.Module):
-    def __init__(self, hidden_size: int, max_sequence_length: int):
-        super().__init__()
+    assert batch == key_batch
+    assert head_dim == key_dim
+    assert v.shape == k.shape
+    assert query_heads % kv_heads == 0
+    assert len(query_positions) == query_tokens
+    assert len(key_positions) == key_tokens
 
-        self.hidden_size = hidden_size
-        self.max_sequence_length = max_sequence_length
+    repeats = query_heads // kv_heads
+    k = k.repeat_interleave(repeats, dim=2)
+    v = v.repeat_interleave(repeats, dim=2)
 
-        self.q_proj = nn.Linear(hidden_size, hidden_size)
-        self.k_proj = nn.Linear(hidden_size, hidden_size)
-        self.v_proj = nn.Linear(hidden_size, hidden_size)
-
-        self.softmax = nn.Softmax(-1)
-
-        causal_mask = torch.triu(
-            torch.ones(
-                max_sequence_length,
-                max_sequence_length,
-                dtype=torch.bool,
-            ),
-            diagonal=1,
-        )
-
-        self.register_buffer(
-            "causal_mask",
-            causal_mask,
-            persistent=False,
-        )
-
-    def forward(self, x):
-        # x: [B, T, D_model]
-        T, _ = x.shape
-
-        query = self.q_proj(x)
-        key = self.k_proj(x)
-        value = self.v_proj(x)
-
-        logits = query @ key.T
-        logits = logits / math.sqrt(self.hidden_size)
-
-        mask = self.causal_mask[:T, :T]
-
-        logits = logits.masked_fill(
-            mask,
-            torch.finfo(logits.dtype).min,
-        )
-
-        attention_weights = self.softmax(logits)
-
-        return attention_weights @ value
-
-
-attention_layer = Attention(3, 6)
-
-x = torch.rand(5,3)
-torch.no_grad()
-print(attention_layer.forward(x))
+    q = q.transpose(1, 2).float()
+    k = k.transpose(1, 2).float()
+    v = v.transpose(1, 2).float()

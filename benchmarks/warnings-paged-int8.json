@@ -1,0 +1,144 @@
+{
+  "benchmark": "synthetic_cached_decode_attention",
+  "timestamp_utc": "2026-10-05T22:12:28.883133+00:00",
+  "settings": {
+    "lengths": [
+      17,
+      128
+    ],
+    "batch": 2,
+    "q_heads": 4,
+    "kv_heads": 2,
+    "head_dim": 64,
+    "cache_layout": "paged",
+    "cache_dtype": "int8",
+    "dtype": "float16",
+    "warmup": 1,
+    "repetitions": 2
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "torch": "2.13.0+cu130",
+    "cuda": "13.0"
+  },
+  "results": [
+    {
+      "kv_length": 17,
+      "latency": {
+        "pytorch_cache_read_and_sdpa": {
+          "median_ms": 0.19551999866962433,
+          "p95_ms": 0.1982080042362213
+        },
+        "triton_precomputed_metadata": {
+          "median_ms": 0.021199999377131462,
+          "p95_ms": 0.021215999498963356
+        }
+      },
+      "error": {
+        "cache_quantization_vs_original_fp32_reference": {
+          "max_abs": 0.007568359375,
+          "max_rel": 2.6521739959716797
+        },
+        "pytorch_sdpa_vs_cached_fp32_reference": {
+          "max_abs": 0.00048828125,
+          "max_rel": 0.019619500264525414
+        },
+        "triton_vs_cached_fp32_reference": {
+          "max_abs": 0.0009765625,
+          "max_rel": 0.04095238074660301
+        },
+        "triton_vs_pytorch": {
+          "max_abs": 0.0009765625,
+          "max_rel": 0.045497629791498184
+        }
+      },
+      "cache": {
+        "layout": "paged",
+        "cache_dtype": "int8",
+        "allocated_bytes": 17408,
+        "used_bytes": 17408,
+        "bytes_per_token": 272,
+        "num_blocks": 4,
+        "free_blocks": 0,
+        "used_blocks": 4,
+        "block_size": 16,
+        "active_requests": 2,
+        "capacity_tokens": 64,
+        "active_tokens": 34,
+        "prefix_blocks": 0,
+        "prefix_hit_tokens": 0,
+        "prefix_evictions": 0
+      },
+      "gpu_peak_allocated_bytes": 33699840,
+      "samples_ms": {
+        "pytorch": [
+          0.19283199310302734,
+          0.1982080042362213
+        ],
+        "triton": [
+          0.021183999255299568,
+          0.021215999498963356
+        ]
+      }
+    },
+    {
+      "kv_length": 128,
+      "latency": {
+        "pytorch_cache_read_and_sdpa": {
+          "median_ms": 0.19339200109243393,
+          "p95_ms": 0.21068799495697021
+        },
+        "triton_precomputed_metadata": {
+          "median_ms": 0.024159999564290047,
+          "p95_ms": 0.024927999824285507
+        }
+      },
+      "error": {
+        "cache_quantization_vs_original_fp32_reference": {
+          "max_abs": 0.005859375,
+          "max_rel": 10.371691703796387
+        },
+        "pytorch_sdpa_vs_cached_fp32_reference": {
+          "max_abs": 0.000244140625,
+          "max_rel": 0.036836933344602585
+        },
+        "triton_vs_cached_fp32_reference": {
+          "max_abs": 0.000244140625,
+          "max_rel": 0.054532576352357864
+        },
+        "triton_vs_pytorch": {
+          "max_abs": 0.000244140625,
+          "max_rel": 0.07045291364192963
+        }
+      },
+      "cache": {
+        "layout": "paged",
+        "cache_dtype": "int8",
+        "allocated_bytes": 69632,
+        "used_bytes": 69632,
+        "bytes_per_token": 272,
+        "num_blocks": 16,
+        "free_blocks": 0,
+        "used_blocks": 16,
+        "block_size": 16,
+        "active_requests": 2,
+        "capacity_tokens": 256,
+        "active_tokens": 256,
+        "prefix_blocks": 0,
+        "prefix_hit_tokens": 0,
+        "prefix_evictions": 0
+      },
+      "gpu_peak_allocated_bytes": 34568192,
+      "samples_ms": {
+        "pytorch": [
+          0.21068799495697021,
+          0.17609600722789764
+        ],
+        "triton": [
+          0.024927999824285507,
+          0.023391999304294586
+        ]
+      }
+    }
+  ]
+}

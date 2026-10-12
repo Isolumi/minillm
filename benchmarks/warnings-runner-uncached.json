@@ -1,0 +1,72 @@
+{
+  "benchmark": "fixed_token_runner",
+  "timestamp_utc": "2026-10-05T22:13:54.845307+00:00",
+  "settings": {
+    "model_path": "/home/isolumi/CS/minillm/models/smollm2-360m-instruct",
+    "backend": "uncached",
+    "prompt_tokens": [
+      16
+    ],
+    "output_tokens": 2,
+    "warmup": 0,
+    "repetitions": 1,
+    "cache_layout": "paged",
+    "cache_dtype": "auto",
+    "attention": "triton",
+    "dtype": "torch.float16",
+    "device": "cuda",
+    "cache_memory_mb": 64,
+    "token_source": "HF chat template and fixed repeated token IDs"
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "torch": "2.13.0+cu130",
+    "cuda": "13.0",
+    "transformers": "5.15.0"
+  },
+  "loader_seconds": 0.36009160699904896,
+  "gpu_allocated_after_load_bytes": 738274304,
+  "loader_peak_allocated_bytes": 738274304,
+  "loader_peak_reserved_bytes": 769654784,
+  "forced_continuation_ids_sha256": "4f3a2d264503f76de05699cf4ca37ac0bb4ab3155a5db432920cf747225682d6",
+  "results": [
+    {
+      "prompt_tokens": 16,
+      "prompt_ids_sha256": "d6135c50d7c52ef823892b89e13866e0887ef335466fb1d3d11a56b1b8648ac5",
+      "forced_continuation_ids_sha256": "4f3a2d264503f76de05699cf4ca37ac0bb4ab3155a5db432920cf747225682d6",
+      "prefill": {
+        "median_ms": 381.46685791015625,
+        "p95_ms": 381.46685791015625
+      },
+      "decode_total": {
+        "median_ms": 25.74492835998535,
+        "p95_ms": 25.74492835998535
+      },
+      "decode_per_token": {
+        "median_ms": 12.872464179992676,
+        "p95_ms": 12.872464179992676
+      },
+      "gpu_peak_allocated_bytes": 772348928,
+      "gpu_peak_reserved_bytes": 803209216,
+      "cache": {
+        "cache_bytes": 0,
+        "mode": "full-prefix recomputation"
+      },
+      "samples": [
+        {
+          "prefill_ms": 381.46685791015625,
+          "decode_total_ms": 25.74492835998535,
+          "decode_per_token_ms": 12.872464179992676,
+          "final_logits_sum": 34344.84375,
+          "cache": {
+            "cache_bytes": 0,
+            "mode": "full-prefix recomputation"
+          },
+          "gpu_peak_allocated_bytes": 772348928,
+          "gpu_peak_reserved_bytes": 803209216
+        }
+      ]
+    }
+  ],
+  "profiler_top_operations": null
+}

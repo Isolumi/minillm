@@ -1,0 +1,744 @@
+{
+  "benchmark": "engine_http_stream",
+  "timestamp_utc": "2026-10-05T22:13:19.730235+00:00",
+  "settings": {
+    "base_url": "http://127.0.0.1:52547/v1",
+    "model": "smollm2-1.7b-instruct",
+    "prompt": "Explain why the sky is blue in one paragraph.",
+    "output_tokens": 8,
+    "concurrency": 4,
+    "repetitions": 1,
+    "warmup": 0
+  },
+  "summary": {
+    "first_visible_seconds": {
+      "median": 0.12725420499918982,
+      "p95": 0.13582178499927977
+    },
+    "completion_seconds": {
+      "median": 0.17518743949949567,
+      "p95": 0.1912052270017739
+    },
+    "aggregate_tokens_per_second": {
+      "median": 166.10896878128375,
+      "p95": 166.10896878128375
+    },
+    "output_tokens": 32,
+    "cached_input_tokens": 112
+  },
+  "metrics_before": {
+    "status": "ready",
+    "resident_model": "smollm2-1.7b-instruct",
+    "residency_policy": "one model; switch after active requests drain",
+    "active_requests": 0,
+    "queued_requests": 0,
+    "completed_requests": 2,
+    "failed_requests": 0,
+    "cancelled_requests": 1,
+    "generated_tokens": 21,
+    "model_load_seconds": {
+      "smollm2-1.7b-instruct": 0.6475378130016907
+    },
+    "cache": {
+      "backend": "custom",
+      "attention_backend": "triton",
+      "capacity_tokens": 10912,
+      "context_limit": 8192,
+      "prefill_tokens": 76,
+      "decode_tokens": 19,
+      "cache": {
+        "layout": "paged",
+        "cache_dtype": "float16",
+        "allocated_bytes": 2145386496,
+        "used_bytes": 12582912,
+        "bytes_per_token": 196608,
+        "num_blocks": 682,
+        "free_blocks": 678,
+        "used_blocks": 4,
+        "block_size": 16,
+        "active_requests": 0,
+        "capacity_tokens": 10912,
+        "active_tokens": 0,
+        "prefix_blocks": 4,
+        "prefix_hit_tokens": 48,
+        "prefix_evictions": 0
+      }
+    },
+    "gpu": {
+      "allocated_bytes": 5603790848,
+      "reserved_bytes": 5811208192,
+      "peak_allocated_bytes": 5607576576,
+      "peak_reserved_bytes": 5811208192
+    },
+    "trace": [
+      {
+        "time": 1791238398.344727,
+        "event": "admit",
+        "request_id": "resp_b1b252c4651b4700b3604154758fabe9",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 36,
+        "cached_tokens": 0
+      },
+      {
+        "time": 1791238398.5201783,
+        "event": "prefill_chunk",
+        "request_id": "resp_b1b252c4651b4700b3604154758fabe9",
+        "model": "smollm2-1.7b-instruct",
+        "start": 0,
+        "end": 36
+      },
+      {
+        "time": 1791238398.5202386,
+        "event": "finish",
+        "request_id": "resp_b1b252c4651b4700b3604154758fabe9",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "cancelled",
+        "output_tokens": 0
+      },
+      {
+        "time": 1791238398.5305538,
+        "event": "admit",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 32,
+        "cached_tokens": 16
+      },
+      {
+        "time": 1791238398.5564363,
+        "event": "prefill_chunk",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct",
+        "start": 16,
+        "end": 32
+      },
+      {
+        "time": 1791238398.5740657,
+        "event": "first_token",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.887805,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.895177,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.905105,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9140153,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9222577,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9300387,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9390006,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9465864,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9542902,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9544249,
+        "event": "finish",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "stop",
+        "output_tokens": 10
+      },
+      {
+        "time": 1791238398.9784427,
+        "event": "admit",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 56,
+        "cached_tokens": 32
+      },
+      {
+        "time": 1791238398.990513,
+        "event": "prefill_chunk",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct",
+        "start": 32,
+        "end": 56
+      },
+      {
+        "time": 1791238398.9906535,
+        "event": "first_token",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.0819695,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.0899274,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.0981426,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.107076,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.114027,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.1223392,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.1309693,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.1404083,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.2289722,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.23793,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.2381706,
+        "event": "finish",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "stop",
+        "output_tokens": 11
+      }
+    ]
+  },
+  "metrics_after": {
+    "status": "ready",
+    "resident_model": "smollm2-1.7b-instruct",
+    "residency_policy": "one model; switch after active requests drain",
+    "active_requests": 0,
+    "queued_requests": 0,
+    "completed_requests": 6,
+    "failed_requests": 0,
+    "cancelled_requests": 1,
+    "generated_tokens": 53,
+    "model_load_seconds": {
+      "smollm2-1.7b-instruct": 0.6475378130016907
+    },
+    "cache": {
+      "backend": "custom",
+      "attention_backend": "triton",
+      "capacity_tokens": 10912,
+      "context_limit": 8192,
+      "prefill_tokens": 124,
+      "decode_tokens": 47,
+      "cache": {
+        "layout": "paged",
+        "cache_dtype": "float16",
+        "allocated_bytes": 2145386496,
+        "used_bytes": 15728640,
+        "bytes_per_token": 196608,
+        "num_blocks": 682,
+        "free_blocks": 677,
+        "used_blocks": 5,
+        "block_size": 16,
+        "active_requests": 0,
+        "capacity_tokens": 10912,
+        "active_tokens": 0,
+        "prefix_blocks": 5,
+        "prefix_hit_tokens": 160,
+        "prefix_evictions": 0
+      }
+    },
+    "gpu": {
+      "allocated_bytes": 5603790848,
+      "reserved_bytes": 5811208192,
+      "peak_allocated_bytes": 5607576576,
+      "peak_reserved_bytes": 5811208192
+    },
+    "trace": [
+      {
+        "time": 1791238398.344727,
+        "event": "admit",
+        "request_id": "resp_b1b252c4651b4700b3604154758fabe9",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 36,
+        "cached_tokens": 0
+      },
+      {
+        "time": 1791238398.5201783,
+        "event": "prefill_chunk",
+        "request_id": "resp_b1b252c4651b4700b3604154758fabe9",
+        "model": "smollm2-1.7b-instruct",
+        "start": 0,
+        "end": 36
+      },
+      {
+        "time": 1791238398.5202386,
+        "event": "finish",
+        "request_id": "resp_b1b252c4651b4700b3604154758fabe9",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "cancelled",
+        "output_tokens": 0
+      },
+      {
+        "time": 1791238398.5305538,
+        "event": "admit",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 32,
+        "cached_tokens": 16
+      },
+      {
+        "time": 1791238398.5564363,
+        "event": "prefill_chunk",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct",
+        "start": 16,
+        "end": 32
+      },
+      {
+        "time": 1791238398.5740657,
+        "event": "first_token",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.887805,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.895177,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.905105,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9140153,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9222577,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9300387,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9390006,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9465864,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9542902,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238398.9544249,
+        "event": "finish",
+        "request_id": "resp_99a1b42182db4abfb05859520f4fb2c0",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "stop",
+        "output_tokens": 10
+      },
+      {
+        "time": 1791238398.9784427,
+        "event": "admit",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 56,
+        "cached_tokens": 32
+      },
+      {
+        "time": 1791238398.990513,
+        "event": "prefill_chunk",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct",
+        "start": 32,
+        "end": 56
+      },
+      {
+        "time": 1791238398.9906535,
+        "event": "first_token",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.0819695,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.0899274,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.0981426,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.107076,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.114027,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.1223392,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.1309693,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.1404083,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.2289722,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.23793,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.2381706,
+        "event": "finish",
+        "request_id": "resp_5c7c2025537f4f9c9ba22ba0de7067aa",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "stop",
+        "output_tokens": 11
+      },
+      {
+        "time": 1791238399.574159,
+        "event": "admit",
+        "request_id": "resp_cc2b97c306b14af28668cfb3a2b4d87b",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 40,
+        "cached_tokens": 16
+      },
+      {
+        "time": 1791238399.5857282,
+        "event": "prefill_chunk",
+        "request_id": "resp_cc2b97c306b14af28668cfb3a2b4d87b",
+        "model": "smollm2-1.7b-instruct",
+        "start": 16,
+        "end": 40
+      },
+      {
+        "time": 1791238399.5858614,
+        "event": "first_token",
+        "request_id": "resp_cc2b97c306b14af28668cfb3a2b4d87b",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.5865147,
+        "event": "admit",
+        "request_id": "resp_4ba0cd0e49014bc1b58eac7e1c2a8c57",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 40,
+        "cached_tokens": 32
+      },
+      {
+        "time": 1791238399.5865767,
+        "event": "admit",
+        "request_id": "resp_90661f7217af42368fdf87f76ac07db5",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 40,
+        "cached_tokens": 32
+      },
+      {
+        "time": 1791238399.586616,
+        "event": "admit",
+        "request_id": "resp_4588d1d4bc05494c937bc21a3cc66ce7",
+        "model": "smollm2-1.7b-instruct",
+        "prompt_tokens": 40,
+        "cached_tokens": 32
+      },
+      {
+        "time": 1791238399.5951395,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.609021,
+        "event": "prefill_chunk",
+        "request_id": "resp_4ba0cd0e49014bc1b58eac7e1c2a8c57",
+        "model": "smollm2-1.7b-instruct",
+        "start": 32,
+        "end": 40
+      },
+      {
+        "time": 1791238399.6091523,
+        "event": "first_token",
+        "request_id": "resp_4ba0cd0e49014bc1b58eac7e1c2a8c57",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6178133,
+        "event": "decode_batch",
+        "batch_size": 2,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6291819,
+        "event": "prefill_chunk",
+        "request_id": "resp_90661f7217af42368fdf87f76ac07db5",
+        "model": "smollm2-1.7b-instruct",
+        "start": 32,
+        "end": 40
+      },
+      {
+        "time": 1791238399.6296995,
+        "event": "first_token",
+        "request_id": "resp_90661f7217af42368fdf87f76ac07db5",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6428134,
+        "event": "decode_batch",
+        "batch_size": 3,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6535091,
+        "event": "prefill_chunk",
+        "request_id": "resp_4588d1d4bc05494c937bc21a3cc66ce7",
+        "model": "smollm2-1.7b-instruct",
+        "start": 32,
+        "end": 40
+      },
+      {
+        "time": 1791238399.6536245,
+        "event": "first_token",
+        "request_id": "resp_4588d1d4bc05494c937bc21a3cc66ce7",
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.663398,
+        "event": "decode_batch",
+        "batch_size": 4,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6734822,
+        "event": "decode_batch",
+        "batch_size": 4,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6822095,
+        "event": "decode_batch",
+        "batch_size": 4,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6907842,
+        "event": "decode_batch",
+        "batch_size": 4,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.6909494,
+        "event": "finish",
+        "request_id": "resp_cc2b97c306b14af28668cfb3a2b4d87b",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "length",
+        "output_tokens": 8
+      },
+      {
+        "time": 1791238399.699617,
+        "event": "decode_batch",
+        "batch_size": 3,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.700595,
+        "event": "finish",
+        "request_id": "resp_4ba0cd0e49014bc1b58eac7e1c2a8c57",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "length",
+        "output_tokens": 8
+      },
+      {
+        "time": 1791238399.7100744,
+        "event": "decode_batch",
+        "batch_size": 2,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.7101786,
+        "event": "finish",
+        "request_id": "resp_90661f7217af42368fdf87f76ac07db5",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "length",
+        "output_tokens": 8
+      },
+      {
+        "time": 1791238399.7183962,
+        "event": "decode_batch",
+        "batch_size": 1,
+        "model": "smollm2-1.7b-instruct"
+      },
+      {
+        "time": 1791238399.718502,
+        "event": "finish",
+        "request_id": "resp_4588d1d4bc05494c937bc21a3cc66ce7",
+        "model": "smollm2-1.7b-instruct",
+        "reason": "length",
+        "output_tokens": 8
+      }
+    ]
+  },
+  "samples": [
+    {
+      "wall_seconds": 0.19264462499995716,
+      "output_tokens": 32,
+      "aggregate_tokens_per_second": 166.10896878128375,
+      "requests": [
+        {
+          "first_visible_seconds": 0.13242408499718294,
+          "completion_seconds": 0.16976811199856456,
+          "input_tokens": 40,
+          "output_tokens": 8,
+          "cached_tokens": 32,
+          "status": "incomplete",
+          "response_id": "resp_4ba0cd0e49014bc1b58eac7e1c2a8c57"
+        },
+        {
+          "first_visible_seconds": 0.10836953899706714,
+          "completion_seconds": 0.16942968999865116,
+          "input_tokens": 40,
+          "output_tokens": 8,
+          "cached_tokens": 16,
+          "status": "incomplete",
+          "response_id": "resp_cc2b97c306b14af28668cfb3a2b4d87b"
+        },
+        {
+          "first_visible_seconds": 0.1220843250011967,
+          "completion_seconds": 0.18060676700042677,
+          "input_tokens": 40,
+          "output_tokens": 8,
+          "cached_tokens": 32,
+          "status": "incomplete",
+          "response_id": "resp_90661f7217af42368fdf87f76ac07db5"
+        },
+        {
+          "first_visible_seconds": 0.13582178499927977,
+          "completion_seconds": 0.1912052270017739,
+          "input_tokens": 40,
+          "output_tokens": 8,
+          "cached_tokens": 32,
+          "status": "incomplete",
+          "response_id": "resp_4588d1d4bc05494c937bc21a3cc66ce7"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "benchmark": "fixed_token_runner",
+  "timestamp_utc": "2026-10-05T22:13:51.642440+00:00",
+  "settings": {
+    "model_path": "/home/isolumi/CS/minillm/models/smollm2-360m-instruct",
+    "backend": "hf",
+    "prompt_tokens": [
+      16
+    ],
+    "output_tokens": 2,
+    "warmup": 0,
+    "repetitions": 1,
+    "cache_layout": "paged",
+    "cache_dtype": "auto",
+    "attention": "triton",
+    "dtype": "torch.float16",
+    "device": "cuda",
+    "cache_memory_mb": 64,
+    "token_source": "HF chat template and fixed repeated token IDs"
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "torch": "2.13.0+cu130",
+    "cuda": "13.0",
+    "transformers": "5.15.0"
+  },
+  "loader_seconds": 0.35554444800072815,
+  "gpu_allocated_after_load_bytes": 738274304,
+  "loader_peak_allocated_bytes": 738274304,
+  "loader_peak_reserved_bytes": 769654784,
+  "forced_continuation_ids_sha256": "4f3a2d264503f76de05699cf4ca37ac0bb4ab3155a5db432920cf747225682d6",
+  "results": [
+    {
+      "prompt_tokens": 16,
+      "prompt_ids_sha256": "d6135c50d7c52ef823892b89e13866e0887ef335466fb1d3d11a56b1b8648ac5",
+      "forced_continuation_ids_sha256": "4f3a2d264503f76de05699cf4ca37ac0bb4ab3155a5db432920cf747225682d6",
+      "prefill": {
+        "median_ms": 417.7411193847656,
+        "p95_ms": 417.7411193847656
+      },
+      "decode_total": {
+        "median_ms": 19.04355239868164,
+        "p95_ms": 19.04355239868164
+      },
+      "decode_per_token": {
+        "median_ms": 9.52177619934082,
+        "p95_ms": 9.52177619934082
+      },
+      "gpu_peak_allocated_bytes": 772877824,
+      "gpu_peak_reserved_bytes": 803209216,
+      "cache": {
+        "backend": "hf",
+        "active_states": 1,
+        "cache_bytes": 737280,
+        "multimodal": false
+      },
+      "samples": [
+        {
+          "prefill_ms": 417.7411193847656,
+          "decode_total_ms": 19.04355239868164,
+          "decode_per_token_ms": 9.52177619934082,
+          "final_logits_sum": 34199.3984375,
+          "cache": {
+            "backend": "hf",
+            "active_states": 1,
+            "cache_bytes": 737280,
+            "multimodal": false
+          },
+          "gpu_peak_allocated_bytes": 772877824,
+          "gpu_peak_reserved_bytes": 803209216
+        }
+      ]
+    }
+  ],
+  "profiler_top_operations": null
+}

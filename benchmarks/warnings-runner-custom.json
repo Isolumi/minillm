@@ -1,0 +1,114 @@
+{
+  "benchmark": "fixed_token_runner",
+  "timestamp_utc": "2026-10-05T22:13:48.445404+00:00",
+  "settings": {
+    "model_path": "/home/isolumi/CS/minillm/models/smollm2-360m-instruct",
+    "backend": "custom",
+    "prompt_tokens": [
+      16
+    ],
+    "output_tokens": 2,
+    "warmup": 0,
+    "repetitions": 1,
+    "cache_layout": "paged",
+    "cache_dtype": "auto",
+    "attention": "triton",
+    "dtype": "torch.float16",
+    "device": "cuda",
+    "cache_memory_mb": 64,
+    "token_source": "HF chat template and fixed repeated token IDs"
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "torch": "2.13.0+cu130",
+    "cuda": "13.0",
+    "transformers": "5.15.0"
+  },
+  "loader_seconds": 0.17553757799760206,
+  "gpu_allocated_after_load_bytes": 739584000,
+  "loader_peak_allocated_bytes": 739584000,
+  "loader_peak_reserved_bytes": 769654784,
+  "forced_continuation_ids_sha256": "4f3a2d264503f76de05699cf4ca37ac0bb4ab3155a5db432920cf747225682d6",
+  "results": [
+    {
+      "prompt_tokens": 16,
+      "prompt_ids_sha256": "d6135c50d7c52ef823892b89e13866e0887ef335466fb1d3d11a56b1b8648ac5",
+      "forced_continuation_ids_sha256": "4f3a2d264503f76de05699cf4ca37ac0bb4ab3155a5db432920cf747225682d6",
+      "prefill": {
+        "median_ms": 169.3191375732422,
+        "p95_ms": 169.3191375732422
+      },
+      "decode_total": {
+        "median_ms": 317.0769958496094,
+        "p95_ms": 317.0769958496094
+      },
+      "decode_per_token": {
+        "median_ms": 158.5384979248047,
+        "p95_ms": 158.5384979248047
+      },
+      "gpu_peak_allocated_bytes": 773794816,
+      "gpu_peak_reserved_bytes": 803209216,
+      "cache": {
+        "backend": "custom",
+        "attention_backend": "triton",
+        "capacity_tokens": 32,
+        "context_limit": 18,
+        "prefill_tokens": 16,
+        "decode_tokens": 2,
+        "cache": {
+          "layout": "paged",
+          "cache_dtype": "float16",
+          "allocated_bytes": 1310720,
+          "used_bytes": 1310720,
+          "bytes_per_token": 40960,
+          "num_blocks": 2,
+          "free_blocks": 0,
+          "used_blocks": 2,
+          "block_size": 16,
+          "active_requests": 1,
+          "capacity_tokens": 32,
+          "active_tokens": 18,
+          "prefix_blocks": 0,
+          "prefix_hit_tokens": 0,
+          "prefix_evictions": 0
+        }
+      },
+      "samples": [
+        {
+          "prefill_ms": 169.3191375732422,
+          "decode_total_ms": 317.0769958496094,
+          "decode_per_token_ms": 158.5384979248047,
+          "final_logits_sum": 34132.50390625,
+          "cache": {
+            "backend": "custom",
+            "attention_backend": "triton",
+            "capacity_tokens": 32,
+            "context_limit": 18,
+            "prefill_tokens": 16,
+            "decode_tokens": 2,
+            "cache": {
+              "layout": "paged",
+              "cache_dtype": "float16",
+              "allocated_bytes": 1310720,
+              "used_bytes": 1310720,
+              "bytes_per_token": 40960,
+              "num_blocks": 2,
+              "free_blocks": 0,
+              "used_blocks": 2,
+              "block_size": 16,
+              "active_requests": 1,
+              "capacity_tokens": 32,
+              "active_tokens": 18,
+              "prefix_blocks": 0,
+              "prefix_hit_tokens": 0,
+              "prefix_evictions": 0
+            }
+          },
+          "gpu_peak_allocated_bytes": 773794816,
+          "gpu_peak_reserved_bytes": 803209216
+        }
+      ]
+    }
+  ],
+  "profiler_top_operations": null
+}
